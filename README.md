@@ -20,9 +20,12 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
 - **Continue Watching** at the top: the videos stopped part way, with how
   much is left. Press and hold a video for Play from the Start, or to take
   it off the list.
-- The length of each video, read in the background one file at a time
-  without playing anything (Qt reads the container), and a picture of each
-  video once it has been played for a few seconds.
+- The length of each video once it has been played, and a picture of it
+  taken a few seconds in. With **Read Video Lengths** in the app menu the
+  lengths of all videos are read in the background, one file at a time
+  without playing anything (Qt loads the file). That is off by default; see
+  AAC below. If reading a file ends the app, the next start says which file
+  and switches reading off again.
 
 **Player**
 
@@ -71,13 +74,14 @@ by the app, with `snapshotDelay`).
 - **Software decoding** (GStreamer's libav decoders) is what plays video on
   devices with the LuneOS images as they are; the hardware decoders through
   gst-droid need Qt Multimedia and gst-droid fixes that are not in the
-  images yet. With software decoding the mindphone plays 720p H.264, HEVC,
-  VP9 and MPEG-4 in real time.
+  images yet. See "Tested on" for what the mindphone plays that way.
 - **AAC sound** goes to gst-droid's audio decoder on Halium devices unless
   `GST_PLUGIN_FEATURE_RANK=droidadec:NONE,droidaenc:NONE,avenc_aac:PRIMARY`
   is set for the app; that is a fix for the image (gst-droid's gate), not
-  for this app. On the mindphone without it, a video with AAC sound ends
-  the app (a crash in GStreamer's decoding thread); with it, it plays.
+  for this app. On the mindphone without it, loading a video with AAC
+  sound ends the app (a segmentation fault in a GStreamer thread) - for
+  playing it, and for reading its length, which is why that is off by
+  default. With it, they play.
 - **Hung decoders**: with the gst-droid in the images, some files hang the
   hardware decoder of the TouchPad and the Q25 before the first picture.
   Qt's GStreamer backend sends its requests to GStreamer's threads, so the
@@ -116,12 +120,17 @@ stand-ins:
   the app menu, playing, the bars, play/pause and jumps, the seek bar,
   speed, audio tracks, both kinds of subtitles and their size, fit and
   fill, turning, resuming, a video that never starts, a broken one, the
-  back gesture, launch parameters, interruptions, the end of a video, the
-  library's pictures and the bars fitting each screen. Screenshots of each
+  back gesture, launch parameters (also before the scan is done),
+  interruptions, the end of a video, the library's pictures, reading
+  lengths switched off after a crash, and the bars fitting each screen. Screenshots of each
   state go to `build/test-output/ui/`.
 
 `tests/mutation-check.py` breaks the app in one way at a time and checks
-that a test fails.
+that a test fails: 33 ways, all caught (2026-10-16).
+
+There is no C++ in the app, so no compiler, sanitizer or C/C++ static
+analysis applies; `qmllint` reports only what the desktop stand-ins cannot
+resolve (Qt Sensors is not installed on the build host).
 
 ## On a device
 
@@ -141,6 +150,28 @@ with `GST_PLUGIN_FEATURE_RANK` set (for AAC on images without the
 gst-droid fix); `HANG=1` adds a file that never opens, for the time-out;
 `NO_LIBRARY=1` leaves out the library on devices where some videos hang
 the decoder.
+
+## Tested on
+
+2026-10-16, with `tools/test-device.sh`, software decoding, the screen
+partly locked (the app draws its own pictures for that). Numbers are the
+app's own: video time per second from its position, pictures per second
+from Qt's video sink.
+
+| Device | File | Result |
+|---|---|---|
+| mindphone (armv7, 480x800) | vp9-480p.webm (Vorbis) | started in 1.0-1.3 s; 1.00x, 30 pictures/s; seek, 1.5x, screen held/let go, resume: pass |
+| | xvid-ac3.avi (MPEG-4, AC3) | started in 1.0 s; 1.00x, 25 pictures/s; all checks pass |
+| | h264-2audio-ass.mkv (AAC + AC3, ASS, .srt) | with RANK: 1.3 s; 1.00x, 30 pictures/s; second audio track, ASS track cleaned to "EMBEDDED ASS two \<i>italic\</i>", the .srt read as Windows-1252 ("Café naïve"), 1.5x: pass |
+| | h264-720p.mp4 (AAC) | with RANK: 1.6 s; 1.00x, 30 pictures/s; 1.5x: pass |
+| | h264-1080p.mp4 (AAC) | with RANK: 2.1-2.3 s; 1.00x, 30 pictures/s; 1.5x: pass |
+| | hevc-720p.mkv (AAC) | with RANK: 1.5 s; 1.00x, 30 pictures/s; 1.5x: pass |
+| | AAC files without RANK | the app ends (segmentation fault in GStreamer) |
+| | a named pipe (never opens) | given up after 15.2 s with the message; the next video plays |
+| TouchPad (armv7, 1024x768) | vp9-480p.webm | started in 3.5 s; 1.01x, 30 pictures/s; seek, 1.5x: pass; screen locked, so not in front and no pictures |
+
+The TouchPad was only given VP9: the gst-droid in its image hangs on
+H.264 and MPEG-4. The Q25 was not used.
 
 ## Icon
 

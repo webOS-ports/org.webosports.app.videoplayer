@@ -56,6 +56,10 @@ FocusScope {
     // {path, name, size, modified} from the library, when it knows the file.
     property var fileInfo: null
     readonly property bool isOpen: path !== ""
+    onFileInfoChanged: {
+        if (fileInfo && started && cache && engine && engine.duration > 0)
+            cache.update(Library.cacheKey(fileInfo), { duration: engine.duration });
+    }
     readonly property string title: Library.displayName(path)
 
     // Log what happens as "VIDEOPLAYER {json}" lines, for tools/test-device.sh.

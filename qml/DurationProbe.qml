@@ -44,6 +44,9 @@ Item {
     // A file's length was read (0: it has none, a stream), or not.
     signal measured(string key, int durationMs)
     signal failed(string key)
+    // About to load path, and done with it: for the crash guard.
+    signal starting(string path)
+    signal finished(string path)
 
     property var _pending: []
     property var _current: null
@@ -78,6 +81,7 @@ Item {
         if (!_player)
             return;
         _current = _pending.shift();
+        starting(_current.path);
         timer.restart();
         var url = Library.fileUrl(_current.path);
         // The same file again (it changed on disk): a new source to load.
@@ -91,7 +95,9 @@ Item {
             return;
         var key = Library.cacheKey(_current);
         var duration = _player.duration;
+        var path = _current.path;
         _current = null;
+        finished(path);
         timer.stop();
         if (ok)
             measured(key, duration > 0 ? duration : 0);

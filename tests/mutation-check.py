@@ -72,6 +72,11 @@ MUTATIONS = [
      "        if (false) {\n            close();\n            return true;", "ui", "mindphone"),
     ("interruption does not pause", "qml/PlayerView.qml", "        log(\"interrupted\", { reason: reason });\n        pause();",
      "        log(\"interrupted\", { reason: reason });", "ui", "mindphone"),
+    ("launched file not learnt after the scan", "qml/main.qml",
+     "                playerView.fileInfo = appWindow.fileInfoFor(playerView.path);", "                ;", "ui", "mindphone"),
+    ("probe crash not noticed", "qml/main.qml", "            preferences.readLengths = false;\n", "", "ui", "mindphone"),
+    ("probe on without being asked", "qml/main.qml", "active: preferences.readLengths && !playerView.isOpen",
+     "active: !playerView.isOpen", "ui", "mindphone"),
     ("library rows made again on every change", "qml/LibraryPage.qml", "                rowModel.set(i, r);",
      "                { rowModel.remove(i); rowModel.insert(i, r); }", "ui", "mindphone"),
 ]

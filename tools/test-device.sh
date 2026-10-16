@@ -119,6 +119,21 @@ s = [e for e in s if e.get('event') == 'status' and e['playing']]
 print('%.2f' % ((s[-1]['position'] - s[-3]['position']) / 4000.0) if len(s) >= 3 else 0)"
 }
 
+# Whether the app is in front (status lines say); with the screen locked
+# it is not, and holds no screen on by design.
+in_front() {
+    events | grep '"event":"status"' | tail -n 1 | grep -q '"active":true'
+}
+held_check() {
+    if ! in_front; then
+        echo "skip $1: screen held while playing - the app is not in front (screen locked?)"
+    elif [ "$(blocked)" = true ]; then
+        ok "$1: screen held on while playing"
+    else
+        bad "$1: screen not held on while playing"
+    fi
+}
+
 ok() { echo "ok   $*"; }
 bad() { echo "FAIL $*"; failures=$((failures + 1)); }
 
@@ -165,7 +180,7 @@ print('%.2f %.1f' % ((b['position'] - a['position']) / 4000.0, (b['frames'] - a[
     else
         bad "$f: no status lines while playing"
     fi
-    [ "$(blocked)" = true ] && ok "$f: screen held on while playing" || bad "$f: screen not held on while playing"
+    held_check "$f"
     events >> "$LOG"
     tracks=$(echo "$started" | python3 -I -c 'import json,sys; e=json.load(sys.stdin); print(len(e["audioTracks"]), len(e["subtitleTracks"]))')
 
@@ -265,7 +280,7 @@ print('%.2f %.1f' % ((b['position'] - a['position']) / 4000.0, (b['frames'] - a[
     else
         bad "$f: no status lines while playing"
     fi
-    if $ADB shell true && [ "$(blocked)" = true ]; then ok "$f: screen held on while playing"; else bad "$f: screen not held on while playing"; fi
+    held_check "$f"
 
     # Seek.
     n=$(count command)

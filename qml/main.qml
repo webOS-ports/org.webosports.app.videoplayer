@@ -19,6 +19,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.LuneOS 2.0
+import QtCore as Core
 
 import Eos.Window 0.1
 import LunaNext.Common 0.1
@@ -65,6 +66,7 @@ WebOSWindow {
     property alias player: playerView
     property alias library: libraryPage
     property alias appMenu: appMenu
+    property alias probeGuard: probeGuard
 
     // The back gesture in the library ends the app (not in the tests).
     property bool quitOnBack: true
@@ -89,16 +91,53 @@ WebOSWindow {
     VideoScanner {
         id: videoScanner
         roots: appWindow.scanRoots
-        onGenerationChanged: appWindow.requestLengths()
+        onGenerationChanged: {
+            appWindow.requestLengths();
+            // Opened from another app before the scan was done: now the
+            // player knows the file (for its length and picture).
+            if (playerView.isOpen && !playerView.fileInfo)
+                playerView.fileInfo = appWindow.fileInfoFor(playerView.path);
+        }
     }
 
     DurationProbe {
         id: durationProbe
         playerSource: appWindow.probePlayerSource
-        // Not while a video plays: it would take from its decoding.
-        active: !playerView.isOpen
+        // Asked for (preferences), and not while a video plays: it would
+        // take from its decoding.
+        active: preferences.readLengths && !playerView.isOpen
+        onStarting: function(path) { probeGuard.mark(path); }
+        onFinished: function(path) { probeGuard.mark(""); }
         onMeasured: function(key, durationMs) { mediaCache.update(key, { duration: durationMs }); }
         onFailed: function(key) { mediaCache.update(key, { failed: true }); }
+    }
+
+    /*
+     * The file the probe is loading, written to disk before it is loaded:
+     * a file that ends the app (a crashing decoder) is still named there at
+     * the next start, and the probe is switched off then. Written with
+     * setValue() and sync(), not a property, which would be saved a moment
+     * later - too late in a crash.
+     */
+    Core.Settings {
+        id: probeGuard
+        location: preferences.location
+        category: "probe"
+
+        function mark(path) {
+            setValue("loading", path);
+            sync();
+        }
+
+        function check() {
+            var crashed = String(value("loading", ""));
+            if (crashed === "")
+                return;
+            mark("");
+            preferences.readLengths = false;
+            appWindow.notice = "Reading the length of “" + Library.displayName(crashed) + "” stopped the app, so "
+                    + "reading lengths is switched off. It can be switched on again in the app menu.";
+        }
     }
 
     // The lengths not known yet, newest files first.
@@ -274,6 +313,12 @@ WebOSWindow {
             onTriggered: preferences.turnLandscape = !preferences.turnLandscape
         }
         MenuItem {
+            text: "Read Video Lengths"
+            checkable: true
+            checked: preferences.readLengths
+            onTriggered: preferences.readLengths = !preferences.readLengths
+        }
+        MenuItem {
             text: "Refresh"
             onTriggered: videoScanner.rescan()
         }
@@ -326,5 +371,8 @@ WebOSWindow {
         }
     }
 
-    Component.onCompleted: videoScanner.rescan()
+    Component.onCompleted: {
+        probeGuard.check();
+        videoScanner.rescan();
+    }
 }

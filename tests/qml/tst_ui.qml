@@ -75,6 +75,7 @@ TestCase {
         app.prefs.fillMode = "fit";
         app.prefs.subtitleSize = "medium";
         app.prefs.turnLandscape = true;
+        app.prefs.readLengths = true;
         app.player.hideDelay = 400;
         tryVerify(function() { return app.scanner.generation > 0 && app.scanner.files.length === 10; }, 10000,
                   "the ten test videos found");
@@ -199,6 +200,40 @@ TestCase {
         verify(rowFor("Big Buck") === row, "the same row");
     }
 
+    // The probe writes down which file it loads; a file that ended the app
+    // switches reading lengths off at the next start, with a word why.
+    function test_a_crash_while_reading_lengths_switches_it_off() {
+        startApp();
+        var marks = [];
+        app.probe.starting.connect(function(p) { marks.push(String(app.probeGuard.value("loading", ""))); });
+        app.cache.facts = "{}";
+        app.requestLengths();
+        tryVerify(function() { return marks.length > 0; }, 5000, "the probe loads a file");
+        compare(marks[0].indexOf(root), 0, "named on disk before it is loaded: " + marks[0]);
+        app.probe.active = false;
+        tryVerify(function() { return !app.probe.busy; }, 15000);
+        // As if the app had ended while loading hang.mp4.
+        app.probeGuard.mark(root + "/hang.mp4");
+        app.destroy();
+        app = null;
+        wait(50);
+        var component = Qt.createComponent(Qt.resolvedUrl("../../qml/main.qml"));
+        app = component.createObject(null, {
+            engineSource: Qt.resolvedUrl("mocks/FakeEngine.qml"),
+            probePlayerSource: Qt.resolvedUrl("mocks/FakeProbePlayer.qml"),
+            scanRoots: [root],
+            quitOnBack: false
+        });
+        verify(!app.prefs.readLengths, "switched off");
+        verify(app.notice.indexOf("“hang” stopped the app") >= 0, app.notice);
+        compare(String(app.probeGuard.value("loading", "")), "", "and forgotten");
+        tryVerify(function() { return app.scanner.generation > 0; }, 10000);
+        wait(300);
+        verify(!app.probe.busy, "nothing read");
+        verify(findChild(app.library, "libraryNotice").visible);
+        shot("probe-crash-notice");
+    }
+
     function test_search_narrows_and_back_clears_it() {
         startApp();
         var search = findChild(app.library, "searchField");
@@ -221,7 +256,7 @@ TestCase {
         app.openAppMenu();
         var menu = app.appMenu;
         tryCompare(menu, "opened", true);
-        compare(menu.count, 5);
+        compare(menu.count, 6);
         verify(menu.itemAt(0).checked, "Sort by Name");
         menu.itemAt(1).triggered();
         compare(app.prefs.sortOrder, "date");
@@ -506,6 +541,24 @@ TestCase {
         compare(quits, 0);
         keyClick(Qt.Key_Escape);
         compare(quits, 1, "then the app");
+    }
+
+    // Launched with a file before the scan is done: the player learns of
+    // the file when it is, and the library gets its picture.
+    function test_launch_before_the_scan_gets_a_picture() {
+        startApp();
+        app.scanner.files = [];
+        app.launchParams = JSON.stringify({ "target": root + "/clip.AVI" });
+        tryVerify(function() { return app.player.started; }, 3000);
+        compare(app.player.fileInfo, null);
+        app.scanner.rescan();
+        tryVerify(function() { return app.player.fileInfo !== null; }, 5000, "known after the scan");
+        app.player.engine.seek(6000);
+        tryVerify(function() {
+            var f = app.player.fileInfo;
+            var facts = app.cache.factsFor(f.path + "|" + f.size + "|" + Math.floor(f.modified / 1000));
+            return facts && facts.thumb && facts.duration === 30000;
+        }, 3000, "picture and length kept");
     }
 
     function test_launched_with_a_target() {

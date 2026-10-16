@@ -39,4 +39,8 @@ Settings {
     property string subtitleSize: "medium"
     // A landscape video on a portrait screen turned to fill it.
     property bool turnLandscape: true
+    // The length of every video read in the background. Off by default:
+    // on Halium images without the gst-droid audio rank fix, loading a
+    // video with AAC sound ends the app.
+    property bool readLengths: false
 }

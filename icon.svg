@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="plate" cx="128" cy="112" r="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.8" stop-color="#f4f4f4"/>
+      <stop offset="1" stop-color="#d9d9d9"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="128" cy="134" r="124" gradientUnits="userSpaceOnUse">
+      <stop offset="0.86" stop-color="#000000" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="film" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3c3c3c"/>
+      <stop offset="1" stop-color="#151515"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5aa9f0"/>
+      <stop offset="1" stop-color="#1c5fae"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="134" r="124" fill="url(#shadow)"/>
+  <circle cx="128" cy="128" r="118" fill="url(#plate)"/>
+  <circle cx="128" cy="128" r="117" fill="none" stroke="#c4c4c4" stroke-width="2"/>
+  <g transform="rotate(-8 128 128)">
+    <rect x="42" y="66" width="172" height="124" rx="10" fill="url(#film)"/>
+    <g fill="#e8e8e8">
+      <rect x="52" y="74" width="12" height="9" rx="2"/><rect x="74" y="74" width="12" height="9" rx="2"/>
+      <rect x="96" y="74" width="12" height="9" rx="2"/><rect x="118" y="74" width="12" height="9" rx="2"/>
+      <rect x="140" y="74" width="12" height="9" rx="2"/><rect x="162" y="74" width="12" height="9" rx="2"/>
+      <rect x="184" y="74" width="12" height="9" rx="2"/>
+      <rect x="52" y="173" width="12" height="9" rx="2"/><rect x="74" y="173" width="12" height="9" rx="2"/>
+      <rect x="96" y="173" width="12" height="9" rx="2"/><rect x="118" y="173" width="12" height="9" rx="2"/>
+      <rect x="140" y="173" width="12" height="9" rx="2"/><rect x="162" y="173" width="12" height="9" rx="2"/>
+      <rect x="184" y="173" width="12" height="9" rx="2"/>
+    </g>
+    <rect x="52" y="91" width="152" height="74" rx="4" fill="url(#screen)"/>
+    <path d="M114 106v44l38-22z" fill="#ffffff"/>
+    <rect x="52" y="91" width="152" height="34" rx="4" fill="url(#gloss)"/>
+  </g>
+</svg>

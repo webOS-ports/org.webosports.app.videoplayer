@@ -73,6 +73,7 @@ TestCase {
         app.cache.facts = "{}";
         app.prefs.sortOrder = "name";
         app.prefs.fillMode = "fit";
+        app.prefs.fullScreen = true;
         app.prefs.subtitleSize = "medium";
         app.prefs.turnLandscape = true;
         app.prefs.readLengths = true;
@@ -433,16 +434,20 @@ TestCase {
         verify(text.font.pixelSize >= 14);
     }
 
+    // A double tap on the picture, turned or not.
     function test_fit_and_fill() {
         startApp();
         var e = play("Movies/Big Buck.mp4");
+        var stage = playerChild("playerStage");
         verify(!e.fill);
-        clickButton("fillButton");
+        mouseDoubleClickSequence(stage);
         compare(app.prefs.fillMode, "fill");
         verify(e.fill);
-        compare(playerChild("fillButton").image, "fit");
-        clickButton("fillButton");
+        verify(app.player.controlsShown);
+        mouseDoubleClickSequence(stage);
         verify(!e.fill);
+        compare(app.prefs.fillMode, "fit");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true", "not the fullscreen");
     }
 
     function test_turning_on_a_tall_screen() {
@@ -541,6 +546,116 @@ TestCase {
         compare(quits, 0);
         keyClick(Qt.Key_Escape);
         compare(quits, 1, "then the app");
+    }
+
+    // The card shell covers the status bar while the player is open
+    // ("LuneOS_fullscreen"), not over the library.
+    function test_the_player_is_fullscreen() {
+        startApp();
+        verify(app.windowProperties["LuneOS_fullscreen"] !== "true", "the library keeps the bar");
+        play("Movies/Big Buck.mp4");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true");
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(app.windowProperties["LuneOS_fullscreen"], "false");
+        play("Movies/Big Buck.mp4");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true", "and again");
+    }
+
+    // The arrows button takes the player out of fullscreen and back in;
+    // the choice is kept for the next video.
+    function test_fullscreen_button() {
+        startApp();
+        var e = play("Movies/Big Buck.mp4");
+        var button = playerChild("fullScreenButton");
+        compare(button.image, "fullscreen-exit");
+        clickButton("fullScreenButton");
+        compare(app.windowProperties["LuneOS_fullscreen"], "false");
+        verify(!app.prefs.fullScreen);
+        compare(button.image, "fullscreen");
+        verify(!e.fill, "not the picture's fit");
+        keyClick(Qt.Key_Escape);
+        play("Movies/Big Buck.mp4");
+        compare(app.windowProperties["LuneOS_fullscreen"], "false", "remembered");
+        clickButton("fullScreenButton");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true");
+        verify(app.prefs.fullScreen);
+    }
+
+    // The screen lock, as Netflix's: no bars and no taps while locked, a
+    // notice for a while after a tap, and its icon asking before unlocking.
+    function test_screen_lock() {
+        startApp();
+        var e = play("Movies/Big Buck.mp4");
+        var stage = playerChild("playerStage");
+        var notice = playerChild("lockNotice");
+        var label = playerChild("lockLabel");
+        var playButton = playerChild("playButton");
+        app.player.lockNoticeDelay = 600;
+        verify(e.playing);
+        // Where the play button is, in the stage.
+        var playAt = playButton.mapToItem(stage, playButton.width / 2, playButton.height / 2);
+
+        clickButton("lockButton");
+        verify(app.player.locked);
+        verify(!playerChild("bottomBar").visible);
+        verify(!playerChild("topBar").visible);
+        tryCompare(notice, "opacity", 1, 1000);
+        compare(label.text, "Screen locked");
+        tryCompare(notice, "visible", false, 2000, "the notice goes by itself");
+
+        // Taps do nothing but bring the notice back.
+        mouseClick(stage, playAt.x, playAt.y);
+        verify(e.playing, "the play button is not there");
+        verify(!playerChild("bottomBar").visible);
+        tryCompare(notice, "opacity", 1, 1000);
+        mouseDoubleClickSequence(stage, stage.width / 2, stage.height / 3);
+        verify(!e.fill, "nor the double tap");
+        app.player.jump(10000);
+        verify(!playerChild("bottomBar").visible, "a key's jump leaves the bars off");
+        // Paused from outside (a call) while locked: the bars stay off, and
+        // a tap still shows the notice.
+        tryCompare(notice, "visible", false, 2000);
+        app.player.controlsShown = true;
+        verify(!playerChild("bottomBar").visible);
+        mouseClick(stage);
+        tryCompare(notice, "opacity", 1, 1000);
+
+        // The icon asks first; unanswered, the question goes with the notice.
+        mouseClick(notice);
+        verify(app.player.locked);
+        compare(label.text, "Unlock controls?");
+        tryCompare(notice, "visible", false, 2000);
+        verify(!app.player.unlockAsked);
+        mouseClick(stage);
+        tryCompare(notice, "opacity", 1, 1000);
+        compare(label.text, "Screen locked");
+        mouseClick(notice);
+        mouseClick(notice);
+        verify(!app.player.locked);
+        verify(app.player.controlsShown);
+        tryCompare(playerChild("bottomBar"), "visible", true, 1000);
+        shot("unlocked");
+
+        // Back still closes the player, and a new video starts unlocked.
+        clickButton("lockButton");
+        verify(app.player.locked);
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        play("Movies/Big Buck.mp4");
+        verify(!app.player.locked);
+    }
+
+    // The end of the video, or an error, needs the bars: they unlock.
+    function test_screen_lock_lets_go_at_the_end() {
+        startApp();
+        var e = play("Movies/Big Buck.mp4");
+        clickButton("lockButton");
+        verify(app.player.locked);
+        e.seek(25000);
+        tryVerify(function() { return e.ended; }, 8000);
+        verify(!app.player.locked);
+        tryCompare(playerChild("bottomBar"), "visible", true, 1000);
     }
 
     // Launched with a file before the scan is done: the player learns of

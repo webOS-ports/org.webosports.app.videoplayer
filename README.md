@@ -49,10 +49,15 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
 **Player**
 
 - Full screen, black; a tap shows or hides the bars, which go by
-  themselves after five seconds of playing and stay while paused.
+  themselves after five seconds of playing and stay while paused. A double
+  tap fits the picture or fills the screen with it (cropped).
 - Seek bar with the time played and the time left; back and forward
-  10 seconds; play/pause; speed (0.5× to 2×); fit the picture or fill the
-  screen with it.
+  10 seconds; play/pause; speed (0.5× to 2×); fullscreen in and out.
+- Screen lock, as in Netflix's app: the lock at the top right turns the
+  bars and every tap off, for a phone held or pocketed while it plays. A
+  tap shows "Screen locked" for a few seconds; tapping that asks "Unlock
+  controls?", and a second tap unlocks. The back gesture still closes the
+  player, and the end of the video or an error unlocks it.
 - Audio track picker for videos with more than one.
 - Subtitles: a SubRip file beside the video (`movie.srt`, or `movie.en.srt`
   and the like for other languages; UTF-8, UTF-16 or, when the file is not
@@ -66,6 +71,11 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
 - On a tall screen a wide video is turned to fill it, the way the device
   is held (orientation sensor); the turn button turns it back or round.
   Off in the app menu ("Turn Wide Videos on Tall Screens").
+- The player covers the whole screen, status bar and gesture area too
+  (with a card shell that has luna-next-cardshell's "LuneOS_fullscreen"
+  window property; a flick up from the bottom edge leaves it). Its
+  fullscreen button gives them back and takes them away again, and is
+  remembered. The library keeps the status bar.
 - Keeps the screen on while a video plays, and only then.
 - Pauses when the card goes to the background, when a phone call starts
   (oFono), and shows it as paused when the sound system pauses it.
@@ -138,8 +148,8 @@ stand-ins:
   mindphone (480x800) and the Q25 (720x720): the library, lengths, search,
   the app menu, playing, the bars, play/pause and jumps, the seek bar,
   speed, audio tracks, both kinds of subtitles and their size, fit and
-  fill, turning, resuming, a video that never starts, a broken one, the
-  back gesture, launch parameters (also before the scan is done),
+  fill, fullscreen, the screen lock, turning, resuming, a video that
+  never starts, a broken one, the back gesture, launch parameters (also before the scan is done),
   interruptions, the end of a video, the library's pictures, reading
   lengths switched off after a crash, and the bars fitting each screen. Screenshots of each
   state go to `build/test-output/ui/`.

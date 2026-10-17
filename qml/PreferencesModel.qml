@@ -35,6 +35,8 @@ Settings {
     // How the picture fills the screen: "fit" (all of it, with bars) or
     // "fill" (the screen, cropped).
     property string fillMode: "fit"
+    // The player over the whole screen, status bar and gesture area too.
+    property bool fullScreen: true
     // Subtitle text size: "small", "medium" or "large".
     property string subtitleSize: "medium"
     // A landscape video on a portrait screen turned to fill it.

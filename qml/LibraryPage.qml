@@ -25,6 +25,7 @@ import LunaNext.Common 0.1
 import LuneOS.Forms 1.0
 
 import "components"
+import LuneOS.Components 1.0 as LC
 import "js/Format.js" as Format
 import "js/Library.js" as Library
 
@@ -73,9 +74,9 @@ Item {
                 result.push({
                     section: "Continue Watching",
                     path: c.path,
-                    name: Library.displayName(c.path),
-                    details: cl > 0 ? Format.duration(cl - c.position) + " left" : "Stopped at " + Format.clock(c.position),
-                    length: cl > 0 ? Format.clock(cl) : "",
+                    name: LC.FileLists.displayName(c.path),
+                    details: cl > 0 ? Format.duration(cl - c.position) + " left" : "Stopped at " + LC.FileLists.formatClock(c.position),
+                    length: cl > 0 ? LC.FileLists.formatClock(cl) : "",
                     thumbnail: pictureOf(cf),
                     progress: cl > 0 ? c.position / cl : -1
                 });
@@ -93,11 +94,11 @@ Item {
             result.push({
                 section: section,
                 path: f.path,
-                name: Library.displayName(f.path),
+                name: LC.FileLists.displayName(f.path),
                 details: [where !== "" ? where + (folder ? "/" + folder : "") : folder,
-                          Format.size(f.size), Format.date(f.modified, Date.now())]
+                          LC.FileLists.formatSize(f.size), LC.FileLists.formatDay(f.modified, Date.now())]
                          .filter(function(s) { return s !== ""; }).join(" · "),
-                length: len > 0 ? Format.clock(len) : "",
+                length: len > 0 ? LC.FileLists.formatClock(len) : "",
                 thumbnail: pictureOf(f),
                 progress: entry && entry.position > 0 && len > 0 ? entry.position / len : -1
             });

@@ -26,6 +26,7 @@ import LunaNext.Common 0.1
 import LuneOS.Service 1.0
 import LuneOS.System 1.0
 
+import LuneOS.Components 1.0 as LC
 import "js/Library.js" as Library
 
 /*
@@ -135,7 +136,7 @@ WebOSWindow {
                 return;
             mark("");
             preferences.readLengths = false;
-            appWindow.notice = "Reading the length of “" + Library.displayName(crashed) + "” stopped the app, so "
+            appWindow.notice = "Reading the length of “" + LC.FileLists.displayName(crashed) + "” stopped the app, so "
                     + "reading lengths is switched off. It can be switched on again in the app menu.";
         }
     }
@@ -172,7 +173,7 @@ WebOSWindow {
 
     // Plays a file: from the library, or a launch target.
     function playFile(target, options) {
-        var path = Library.localPath(target);
+        var path = LC.FileLists.localPath(target);
         if (path === "") {
             notice = "Only videos on this device can be played: " + target;
             return;

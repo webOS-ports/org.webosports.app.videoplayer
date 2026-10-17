@@ -24,6 +24,7 @@ import Qt.labs.folderlistmodel
 import LunaNext.Common 0.1
 
 import "components"
+import LuneOS.Components 1.0 as LC
 import "js/Format.js" as Format
 import "js/Library.js" as Library
 import "js/Playback.js" as Playback
@@ -62,7 +63,7 @@ FocusScope {
         if (fileInfo && started && cache && engine && engine.duration > 0)
             cache.update(Library.cacheKey(fileInfo), { duration: engine.duration });
     }
-    readonly property string title: Library.displayName(path)
+    readonly property string title: LC.FileLists.displayName(path)
 
     // Log what happens as "VIDEOPLAYER {json}" lines, for tools/test-device.sh.
     property bool report: false
@@ -147,10 +148,10 @@ FocusScope {
         e.activeSubtitleTrack = -1;
         e.activeAudioTrack = 0;
         e.countFrames = report;
-        e.source = Library.fileUrl(newPath);
+        e.source = LC.FileLists.fileUrl(newPath);
         play();
         showControls();
-        srtFolder.folder = Library.fileUrl(newPath.substring(0, newPath.lastIndexOf("/")) || "/");
+        srtFolder.folder = LC.FileLists.fileUrl(newPath.substring(0, newPath.lastIndexOf("/")) || "/");
         log("open", {});
         view.forceActiveFocus();
     }
@@ -538,7 +539,7 @@ FocusScope {
     // later), and decoded by Subtitles.js.
     function loadSrt(srtPath) {
         var xhr = new XMLHttpRequest();
-        xhr.open("GET", Library.fileUrl(srtPath));
+        xhr.open("GET", LC.FileLists.fileUrl(srtPath));
         xhr.responseType = "arraybuffer";
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== XMLHttpRequest.DONE)
@@ -840,7 +841,7 @@ FocusScope {
                 spacing: Units.gu(1.5)
                 Label {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Resumed at " + Format.clock(view.resumedFrom)
+                    text: "Resumed at " + LC.FileLists.formatClock(view.resumedFrom)
                     color: "white"
                     font.pixelSize: FontUtils.sizeToPixels("small")
                 }

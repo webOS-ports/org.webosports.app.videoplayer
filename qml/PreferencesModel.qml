@@ -18,16 +18,15 @@
 
 import QtQuick
 import QtCore
+import LuneOS.Components 1.0
 
 /*
  * The app's preferences, in the app's settings file. Where each video was
  * left lives in ResumeStore.
  */
 Settings {
-    // Not a QSettings organisation/application pair: the QML runner is
-    // shared by every QML app, so the file is named explicitly.
-    location: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation)
-              + "/org.webosports.app.videoplayer/preferences.ini"
+    // In the app's own file, as every QML app has (LuneOS.Components' AppFiles).
+    location: AppFiles.preferencesFile("org.webosports.app.videoplayer")
     category: "player"
 
     // The library's order: "name", "date" or "size".

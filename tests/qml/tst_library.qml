@@ -19,10 +19,13 @@
 import QtQuick
 import QtTest
 
+import LuneOS.Components 1.0
+
 import "../../qml/js/Library.js" as Library
 
 /*
- * qml/js/Library.js: what is a video, which folders, order, search, paths.
+ * qml/js/Library.js: what is a video, which folders, order, search, paths;
+ * and what the app relies on of LuneOS.Components' FileLists.
  */
 TestCase {
     name: "Library"
@@ -57,24 +60,24 @@ TestCase {
     }
 
     function test_launch_targets() {
-        compare(Library.localPath("/media/internal/a.mp4"), "/media/internal/a.mp4");
-        compare(Library.localPath("file:///media/internal/My%20Film.mkv"), "/media/internal/My Film.mkv");
-        compare(Library.localPath("file://localhost/media/a.mp4"), "/media/a.mp4");
-        compare(Library.localPath("file://otherhost/a.mp4"), "");
-        compare(Library.localPath("http://example.com/a.mp4"), "");
-        compare(Library.localPath("relative.mp4"), "");
-        compare(Library.localPath("file:///bad%E0%A4%A.mp4"), "");
-        compare(Library.localPath(undefined), "");
+        compare(FileLists.localPath("/media/internal/a.mp4"), "/media/internal/a.mp4");
+        compare(FileLists.localPath("file:///media/internal/My%20Film.mkv"), "/media/internal/My Film.mkv");
+        compare(FileLists.localPath("file://localhost/media/a.mp4"), "/media/a.mp4");
+        compare(FileLists.localPath("file://otherhost/a.mp4"), "");
+        compare(FileLists.localPath("http://example.com/a.mp4"), "");
+        compare(FileLists.localPath("relative.mp4"), "");
+        compare(FileLists.localPath("file:///bad%E0%A4%A.mp4"), "");
+        compare(FileLists.localPath(undefined), "");
     }
 
     function test_file_urls_are_encoded() {
-        compare(Library.fileUrl("/media/internal/My Film #1.mkv"), "file:///media/internal/My%20Film%20%231.mkv");
-        compare(Library.localPath(Library.fileUrl("/a/Café 50%.mp4")), "/a/Café 50%.mp4");
+        compare(FileLists.fileUrl("/media/internal/My Film #1.mkv"), "file:///media/internal/My%20Film%20%231.mkv");
+        compare(FileLists.localPath(FileLists.fileUrl("/a/Café 50%.mp4")), "/a/Café 50%.mp4");
     }
 
     function test_names_and_folders() {
-        compare(Library.displayName("/a/b/My.Film.2024.mkv"), "My.Film.2024");
-        compare(Library.displayName("/a/noext"), "noext");
+        compare(FileLists.displayName("/a/b/My.Film.2024.mkv"), "My.Film.2024");
+        compare(FileLists.displayName("/a/noext"), "noext");
         var roots = ["/media/internal", "/media/sd"];
         compare(Library.folderOf("/media/internal/a.mp4", roots), "");
         compare(Library.folderOf("/media/internal/Movies/Series/a.mp4", roots), "Movies/Series");
@@ -93,10 +96,10 @@ TestCase {
 
     function test_natural_order() {
         var names = ["Episode 10", "episode 2", "Episode 1", "Zebra", "apple"];
-        verify(Library.naturalCompare("Episode 3", "Episode 2") > 0);
-        verify(Library.naturalCompare("Episode 2", "Episode 10") < 0);
-        compare(Library.naturalCompare("a 7", "A 7"), 0);
-        names.sort(Library.naturalCompare);
+        verify(FileLists.naturalCompare("Episode 3", "Episode 2") > 0);
+        verify(FileLists.naturalCompare("Episode 2", "Episode 10") < 0);
+        compare(FileLists.naturalCompare("a 7", "A 7"), 0);
+        names.sort(FileLists.naturalCompare);
         compare(names, ["apple", "Episode 1", "episode 2", "Episode 10", "Zebra"]);
     }
 

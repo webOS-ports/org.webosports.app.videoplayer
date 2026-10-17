@@ -180,4 +180,4 @@ H.264 and MPEG-4. The Q25 was not used.
 
 ## Licence
 
-Apache License 2.0, see `LICENSE`.
+GNU General Public License version 3 (GPL-3.0-only), see `LICENSE`.

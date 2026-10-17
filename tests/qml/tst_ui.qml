@@ -582,6 +582,82 @@ TestCase {
         verify(app.prefs.fullScreen);
     }
 
+    // The screen lock, as Netflix's: no bars and no taps while locked, a
+    // notice for a while after a tap, and its icon asking before unlocking.
+    function test_screen_lock() {
+        startApp();
+        var e = play("Movies/Big Buck.mp4");
+        var stage = playerChild("playerStage");
+        var notice = playerChild("lockNotice");
+        var label = playerChild("lockLabel");
+        var playButton = playerChild("playButton");
+        app.player.lockNoticeDelay = 600;
+        verify(e.playing);
+        // Where the play button is, in the stage.
+        var playAt = playButton.mapToItem(stage, playButton.width / 2, playButton.height / 2);
+
+        clickButton("lockButton");
+        verify(app.player.locked);
+        verify(!playerChild("bottomBar").visible);
+        verify(!playerChild("topBar").visible);
+        tryCompare(notice, "opacity", 1, 1000);
+        compare(label.text, "Screen locked");
+        tryCompare(notice, "visible", false, 2000, "the notice goes by itself");
+
+        // Taps do nothing but bring the notice back.
+        mouseClick(stage, playAt.x, playAt.y);
+        verify(e.playing, "the play button is not there");
+        verify(!playerChild("bottomBar").visible);
+        tryCompare(notice, "opacity", 1, 1000);
+        mouseDoubleClickSequence(stage, stage.width / 2, stage.height / 3);
+        verify(!e.fill, "nor the double tap");
+        app.player.jump(10000);
+        verify(!playerChild("bottomBar").visible, "a key's jump leaves the bars off");
+        // Paused from outside (a call) while locked: the bars stay off, and
+        // a tap still shows the notice.
+        tryCompare(notice, "visible", false, 2000);
+        app.player.controlsShown = true;
+        verify(!playerChild("bottomBar").visible);
+        mouseClick(stage);
+        tryCompare(notice, "opacity", 1, 1000);
+
+        // The icon asks first; unanswered, the question goes with the notice.
+        mouseClick(notice);
+        verify(app.player.locked);
+        compare(label.text, "Unlock controls?");
+        tryCompare(notice, "visible", false, 2000);
+        verify(!app.player.unlockAsked);
+        mouseClick(stage);
+        tryCompare(notice, "opacity", 1, 1000);
+        compare(label.text, "Screen locked");
+        mouseClick(notice);
+        mouseClick(notice);
+        verify(!app.player.locked);
+        verify(app.player.controlsShown);
+        tryCompare(playerChild("bottomBar"), "visible", true, 1000);
+        shot("unlocked");
+
+        // Back still closes the player, and a new video starts unlocked.
+        clickButton("lockButton");
+        verify(app.player.locked);
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        play("Movies/Big Buck.mp4");
+        verify(!app.player.locked);
+    }
+
+    // The end of the video, or an error, needs the bars: they unlock.
+    function test_screen_lock_lets_go_at_the_end() {
+        startApp();
+        var e = play("Movies/Big Buck.mp4");
+        clickButton("lockButton");
+        verify(app.player.locked);
+        e.seek(25000);
+        tryVerify(function() { return e.ended; }, 8000);
+        verify(!app.player.locked);
+        tryCompare(playerChild("bottomBar"), "visible", true, 1000);
+    }
+
     // Launched with a file before the scan is done: the player learns of
     // the file when it is, and the library gets its picture.
     function test_launch_before_the_scan_gets_a_picture() {

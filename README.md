@@ -53,6 +53,11 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
   tap fits the picture or fills the screen with it (cropped).
 - Seek bar with the time played and the time left; back and forward
   10 seconds; play/pause; speed (0.5× to 2×); fullscreen in and out.
+- Screen lock, as in Netflix's app: the lock at the top right turns the
+  bars and every tap off, for a phone held or pocketed while it plays. A
+  tap shows "Screen locked" for a few seconds; tapping that asks "Unlock
+  controls?", and a second tap unlocks. The back gesture still closes the
+  player, and the end of the video or an error unlocks it.
 - Audio track picker for videos with more than one.
 - Subtitles: a SubRip file beside the video (`movie.srt`, or `movie.en.srt`
   and the like for other languages; UTF-8, UTF-16 or, when the file is not
@@ -143,8 +148,8 @@ stand-ins:
   mindphone (480x800) and the Q25 (720x720): the library, lengths, search,
   the app menu, playing, the bars, play/pause and jumps, the seek bar,
   speed, audio tracks, both kinds of subtitles and their size, fit and
-  fill, fullscreen, turning, resuming, a video that never starts, a broken
-  one, the back gesture, launch parameters (also before the scan is done),
+  fill, fullscreen, the screen lock, turning, resuming, a video that
+  never starts, a broken one, the back gesture, launch parameters (also before the scan is done),
   interruptions, the end of a video, the library's pictures, reading
   lengths switched off after a crash, and the bars fitting each screen. Screenshots of each
   state go to `build/test-output/ui/`.

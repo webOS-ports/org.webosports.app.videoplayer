@@ -73,6 +73,12 @@ FocusScope {
     property string errorText: ""
     property int resumedFrom: 0
     property bool controlsShown: true
+    // The screen lock, as in Netflix's player: the bars and every tap on the
+    // picture are off, and a tap only shows the lock notice; its icon asks
+    // "Unlock controls?", and a second tap on it unlocks. For a phone held
+    // or in a pocket while it plays. The back gesture still works.
+    property bool locked: false
+    property bool unlockAsked: false
     property bool thumbnailDone: false
 
     // Subtitles: "off", "srt:<path>" or "track:<n>".
@@ -125,6 +131,8 @@ FocusScope {
         thumbnailDone = false;
         turnOverride = null;
         landscapeVideo = false;
+        locked = false;
+        unlockAsked = false;
         srtFiles = [];
         srtCues = [];
         srtEncoding = "";
@@ -156,6 +164,8 @@ FocusScope {
         if (engine)
             engine.stop();
         wantPlay = false;
+        locked = false;
+        unlockAsked = false;
         path = "";
         fileInfo = null;
         closed();
@@ -177,8 +187,8 @@ FocusScope {
     // Commands from a launch, for driving the player from a test over the
     // bus: {"seek": ms, "rate": r, "audioTrack": n, "subtitle": "off" |
     // "srt" | "track:<n>", "pause": true, "play": true, "close": true,
-    // "fullScreen": bool, "fill": bool}; the last two as the fullscreen
-    // button and a double tap would leave them.
+    // "fullScreen": bool, "fill": bool, "lock": bool}; fullScreen and fill as
+    // the fullscreen button and a double tap would leave them.
     function command(c) {
         if (!isOpen || !c)
             return;
@@ -195,6 +205,10 @@ FocusScope {
             toggleFullScreen();
         if (typeof c.fill === "boolean" && prefs && c.fill !== (prefs.fillMode === "fill"))
             toggleFill();
+        if (c.lock === true)
+            lock();
+        if (c.lock === false)
+            unlock();
         if (c.pause === true)
             pause();
         if (c.play === true)
@@ -250,8 +264,58 @@ FocusScope {
     }
 
     function showControls() {
+        if (locked) {
+            showLockNotice();
+            return;
+        }
         controlsShown = true;
         hideTimer.restart();
+    }
+
+    function lock() {
+        if (locked || !isOpen)
+            return;
+        sheet.hide();
+        locked = true;
+        unlockAsked = false;
+        controlsShown = false;
+        showLockNotice();
+        log("lock", { locked: true });
+    }
+
+    // The bars come back with it.
+    function unlock() {
+        if (!locked)
+            return;
+        locked = false;
+        unlockAsked = false;
+        lockNoticeTimer.stop();
+        log("lock", { locked: false });
+        showControls();
+    }
+
+    function showLockNotice() {
+        lockNoticeTimer.restart();
+    }
+
+    // A tap on the lock notice: the first asks, the second unlocks.
+    function tapLockNotice() {
+        if (unlockAsked) {
+            unlock();
+        } else {
+            unlockAsked = true;
+            showLockNotice();
+        }
+    }
+
+    // How long the lock notice stays after a tap; long enough to read
+    // "Unlock controls?" and tap it.
+    property int lockNoticeDelay: 3000
+
+    Timer {
+        id: lockNoticeTimer
+        interval: view.lockNoticeDelay
+        onTriggered: view.unlockAsked = false
     }
 
     // How long the bars stay up while playing.
@@ -295,6 +359,7 @@ FocusScope {
     function fail(text) {
         errorText = text;
         wantPlay = false;
+        unlock();
         controlsShown = true;
         log("error", { text: text });
     }
@@ -308,6 +373,7 @@ FocusScope {
         function onEndedChanged() {
             if (view.isOpen && view.engine.ended) {
                 view.wantPlay = false;
+                view.unlock();
                 view.controlsShown = true;
                 view.log("ended", {});
                 view.saveState();
@@ -672,12 +738,15 @@ FocusScope {
         }
 
         // A tap shows or hides the bars; a double tap switches between all
-        // of the picture and the screen filled (cropped).
+        // of the picture and the screen filled (cropped). Locked, a tap only
+        // shows the lock notice.
         MouseArea {
             anchors.fill: parent
-            onDoubleClicked: view.toggleFill()
+            onDoubleClicked: if (!view.locked) view.toggleFill()
             onClicked: {
-                if (view.controlsShown && view.started && !(view.engine && view.engine.ended))
+                if (view.locked)
+                    view.showLockNotice();
+                else if (view.controlsShown && view.started && !(view.engine && view.engine.ended))
                     view.controlsShown = false;
                 else
                     view.showControls();
@@ -715,7 +784,7 @@ FocusScope {
             anchors.top: parent.top
             height: Math.max(Units.gu(7), 60)
             opacity: view.controlsShown ? 1 : 0
-            visible: opacity > 0
+            visible: opacity > 0 && !view.locked
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
             Rectangle {
@@ -729,14 +798,28 @@ FocusScope {
 
             Label {
                 anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.margins: Units.gu(2)
+                anchors.right: lockButton.left
+                anchors.leftMargin: Units.gu(2)
+                anchors.rightMargin: Units.gu(1)
                 anchors.verticalCenter: parent.verticalCenter
                 text: view.title
                 color: "white"
                 elide: Text.ElideMiddle
                 font.pixelSize: FontUtils.sizeToPixels("medium")
                 font.bold: true
+            }
+
+            // At the top, where the bottom row has no room left on a
+            // narrow screen; Netflix has it among its lower buttons.
+            IconButton {
+                id: lockButton
+                objectName: "lockButton"
+                anchors.right: parent.right
+                anchors.rightMargin: Units.gu(1)
+                anchors.verticalCenter: parent.verticalCenter
+                image: "lock"
+                enabled: view.errorText === ""
+                onClicked: view.lock()
             }
         }
 
@@ -749,7 +832,7 @@ FocusScope {
             height: Math.max(Units.gu(5), 48)
             radius: height / 2
             color: "#cc202020"
-            visible: view.resumedFrom > 0 && resumeNoticeTimer.running && view.errorText === ""
+            visible: view.resumedFrom > 0 && resumeNoticeTimer.running && view.errorText === "" && !view.locked
 
             Row {
                 id: resumeRow
@@ -782,7 +865,7 @@ FocusScope {
             anchors.bottom: parent.bottom
             height: seekRow.height + buttonRow.height + Units.gu(2)
             opacity: view.controlsShown ? 1 : 0
-            visible: opacity > 0
+            visible: opacity > 0 && !view.locked
             Behavior on opacity { NumberAnimation { duration: 200 } }
 
             Rectangle {
@@ -982,6 +1065,50 @@ FocusScope {
                     text: "Close"
                     onClicked: view.close()
                 }
+            }
+        }
+
+        // Locked: "Screen locked" for a while after each tap, low in the
+        // middle; a tap on it asks "Unlock controls?", a second unlocks.
+        Rectangle {
+            id: lockNotice
+            objectName: "lockNotice"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Units.gu(4)
+            width: lockRow.width + Units.gu(4)
+            height: Math.max(Units.gu(6), 54)
+            radius: height / 2
+            color: view.unlockAsked ? "#e6303030" : "#b0202020"
+            border.color: view.unlockAsked ? "#aaaaaa" : "transparent"
+            opacity: view.locked && lockNoticeTimer.running ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            Row {
+                id: lockRow
+                anchors.centerIn: parent
+                spacing: Units.gu(1)
+                Image {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Units.gu(3)
+                    height: width
+                    source: Qt.resolvedUrl("images/" + (view.unlockAsked ? "unlock" : "lock") + ".svg")
+                    sourceSize: Qt.size(Math.ceil(width), Math.ceil(height))
+                }
+                Label {
+                    objectName: "lockLabel"
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: view.unlockAsked ? "Unlock controls?" : "Screen locked"
+                    color: "white"
+                    font.pixelSize: FontUtils.sizeToPixels("medium")
+                    font.bold: view.unlockAsked
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                enabled: view.locked
+                onClicked: view.tapLockNotice()
             }
         }
 

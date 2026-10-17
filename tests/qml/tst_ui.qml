@@ -73,6 +73,7 @@ TestCase {
         app.cache.facts = "{}";
         app.prefs.sortOrder = "name";
         app.prefs.fillMode = "fit";
+        app.prefs.fullScreen = true;
         app.prefs.subtitleSize = "medium";
         app.prefs.turnLandscape = true;
         app.prefs.readLengths = true;
@@ -433,16 +434,20 @@ TestCase {
         verify(text.font.pixelSize >= 14);
     }
 
+    // A double tap on the picture, turned or not.
     function test_fit_and_fill() {
         startApp();
         var e = play("Movies/Big Buck.mp4");
+        var stage = playerChild("playerStage");
         verify(!e.fill);
-        clickButton("fillButton");
+        mouseDoubleClickSequence(stage);
         compare(app.prefs.fillMode, "fill");
         verify(e.fill);
-        compare(playerChild("fillButton").image, "fit");
-        clickButton("fillButton");
+        verify(app.player.controlsShown);
+        mouseDoubleClickSequence(stage);
         verify(!e.fill);
+        compare(app.prefs.fillMode, "fit");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true", "not the fullscreen");
     }
 
     function test_turning_on_a_tall_screen() {
@@ -555,6 +560,26 @@ TestCase {
         compare(app.windowProperties["LuneOS_fullscreen"], "false");
         play("Movies/Big Buck.mp4");
         compare(app.windowProperties["LuneOS_fullscreen"], "true", "and again");
+    }
+
+    // The arrows button takes the player out of fullscreen and back in;
+    // the choice is kept for the next video.
+    function test_fullscreen_button() {
+        startApp();
+        var e = play("Movies/Big Buck.mp4");
+        var button = playerChild("fullScreenButton");
+        compare(button.image, "fullscreen-exit");
+        clickButton("fullScreenButton");
+        compare(app.windowProperties["LuneOS_fullscreen"], "false");
+        verify(!app.prefs.fullScreen);
+        compare(button.image, "fullscreen");
+        verify(!e.fill, "not the picture's fit");
+        keyClick(Qt.Key_Escape);
+        play("Movies/Big Buck.mp4");
+        compare(app.windowProperties["LuneOS_fullscreen"], "false", "remembered");
+        clickButton("fullScreenButton");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true");
+        verify(app.prefs.fullScreen);
     }
 
     // Launched with a file before the scan is done: the player learns of

@@ -218,12 +218,13 @@ WebOSWindow {
 
     /*
      * The player covers the whole screen, the status bar and the gesture
-     * area too: the card shell makes the card fullscreen while the window
-     * property "LuneOS_fullscreen" is "true" (luna-next-cardshell's
+     * area too, unless its fullscreen button said otherwise (prefs): the
+     * card shell makes the card fullscreen while the window property
+     * "LuneOS_fullscreen" is "true" (luna-next-cardshell's
      * CardWindowWrapper); a flick up from the bottom edge still leaves it.
      * The library keeps the bar. A shell without this ignores the property.
      */
-    readonly property bool fullScreen: playerView.isOpen
+    readonly property bool fullScreen: playerView.isOpen && preferences.fullScreen
     onFullScreenChanged: {
         setWindowProperty("LuneOS_fullscreen", fullScreen ? "true" : "false");
         playerView.log("fullscreen", { on: fullScreen });

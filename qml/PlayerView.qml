@@ -31,11 +31,13 @@ import "js/Subtitles.js" as Subtitles
 
 /*
  * The player: the video over the whole card, with its bars shown by a tap
- * and gone again after a few seconds of playing.
+ * and gone again after a few seconds of playing; a double tap switches
+ * between all of the picture (fit) and the screen filled (cropped).
  *
  * The bars: the name at the top; below, the time and seek bar, then the
  * audio track and subtitle pickers, back 10 s, play/pause, forward 10 s,
- * the speed, fit/fill and, on a tall screen, turning the picture.
+ * the speed, fullscreen in and out and, on a tall screen, turning the
+ * picture.
  *
  * Starting is watched: a video that has not shown its first picture
  * Playback.loadTimeoutMs after it was asked to play is given up on with a
@@ -174,7 +176,9 @@ FocusScope {
 
     // Commands from a launch, for driving the player from a test over the
     // bus: {"seek": ms, "rate": r, "audioTrack": n, "subtitle": "off" |
-    // "srt" | "track:<n>", "pause": true, "play": true, "close": true}.
+    // "srt" | "track:<n>", "pause": true, "play": true, "close": true,
+    // "fullScreen": bool, "fill": bool}; the last two as the fullscreen
+    // button and a double tap would leave them.
     function command(c) {
         if (!isOpen || !c)
             return;
@@ -187,6 +191,10 @@ FocusScope {
             engine.activeAudioTrack = c.audioTrack;
         if (typeof c.subtitle === "string")
             chooseSubtitles(c.subtitle === "srt" ? (srtFiles.length ? "srt:" + srtFiles[0] : "off") : c.subtitle);
+        if (typeof c.fullScreen === "boolean" && prefs && c.fullScreen !== prefs.fullScreen)
+            toggleFullScreen();
+        if (typeof c.fill === "boolean" && prefs && c.fill !== (prefs.fillMode === "fill"))
+            toggleFill();
         if (c.pause === true)
             pause();
         if (c.play === true)
@@ -561,6 +569,11 @@ FocusScope {
         showControls();
     }
 
+    function toggleFullScreen() {
+        prefs.fullScreen = !prefs.fullScreen;
+        showControls();
+    }
+
     function toggleTurn() {
         turnOverride = !turned;
         if (turnOverride)
@@ -658,9 +671,11 @@ FocusScope {
             when: engineHost.engine !== null
         }
 
-        // A tap shows or hides the bars.
+        // A tap shows or hides the bars; a double tap switches between all
+        // of the picture and the screen filled (cropped).
         MouseArea {
             anchors.fill: parent
+            onDoubleClicked: view.toggleFill()
             onClicked: {
                 if (view.controlsShown && view.started && !(view.engine && view.engine.ended))
                     view.controlsShown = false;
@@ -897,10 +912,10 @@ FocusScope {
                     onClicked: view.openSpeedPicker()
                 }
                 IconButton {
-                    objectName: "fillButton"
+                    objectName: "fullScreenButton"
                     width: buttonRow.buttonWidth
-                    image: view.prefs && view.prefs.fillMode === "fill" ? "fit" : "fill"
-                    onClicked: view.toggleFill()
+                    image: view.prefs && view.prefs.fullScreen ? "fullscreen-exit" : "fullscreen"
+                    onClicked: view.toggleFullScreen()
                 }
                 IconButton {
                     objectName: "turnButton"

@@ -18,6 +18,7 @@
 
 import QtQuick
 import QtCore
+import LuneOS.Components 1.0
 
 import "js/Playback.js" as Playback
 
@@ -29,8 +30,8 @@ import "js/Playback.js" as Playback
 Settings {
     id: store
 
-    location: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation)
-              + "/org.webosports.app.videoplayer/preferences.ini"
+    // In the app's own file, as every QML app has (LuneOS.Components' AppFiles).
+    location: AppFiles.preferencesFile("org.webosports.app.videoplayer")
     category: "resume"
 
     property string videos: "{}"

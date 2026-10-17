@@ -19,6 +19,7 @@
 import QtQuick
 import Qt.labs.folderlistmodel
 
+import LuneOS.Components 1.0 as LC
 import "js/Library.js" as Library
 
 /*
@@ -178,7 +179,7 @@ Item {
                 caseSensitive: false
                 nameFilters: Library.nameFilters()
                 sortField: FolderListModel.Unsorted
-                folder: Library.fileUrl(reader.path)
+                folder: LC.FileLists.fileUrl(reader.path)
                 // Read just after: not from inside the model's own signal,
                 // as reading ends with destroying it.
                 onStatusChanged: {

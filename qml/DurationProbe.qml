@@ -18,6 +18,7 @@
 
 import QtQuick
 
+import LuneOS.Components 1.0 as LC
 import "js/Library.js" as Library
 
 /*
@@ -83,7 +84,7 @@ Item {
         _current = _pending.shift();
         starting(_current.path);
         timer.restart();
-        var url = Library.fileUrl(_current.path);
+        var url = LC.FileLists.fileUrl(_current.path);
         // The same file again (it changed on disk): a new source to load.
         if (String(_player.source) === url)
             _player.source = "";

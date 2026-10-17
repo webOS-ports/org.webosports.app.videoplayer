@@ -40,10 +40,8 @@ MUTATIONS = [
     ("a vanished folder lists another", "qml/VideoScanner.qml",
      "            if (path.substring(0, path.lastIndexOf(\"/\")) !== reader.path)\n                continue;", "",
      "scanner", None),
-    ("natural order off", "qml/js/Library.js", "            if (d !== 0)\n                return d < 0 ? -1 : 1;", "",
-     "library", None),
-    ("accents not folded", "qml/js/Library.js", "    if (t.normalize)", "    if (false)", "library", None),
-    ("launch URL not decoded", "qml/js/Library.js", "            t = decodeURIComponent(t);", "", "library", None),
+    # The natural order, accent folding and launch URLs are LuneOS.Components'
+    # FileLists now, mutation-checked with luneos-components' tests.
     ("resume at the very end", "qml/js/Playback.js", "&& positionMs <= durationMs - endMarginMs", "", "playback", None),
     ("store not pruned", "qml/js/Playback.js", "if (paths.length > maxRemembered)", "if (false)", "playback", None),
     ("started without a picture", "qml/js/Playback.js", "return hasVideo ? framesShown > 0 : positionMs > 0;",

@@ -17,10 +17,13 @@
  */
 
 .pragma library
+.import LuneOS.Components 1.0 as LC
 
 /*
  * The library's rules: what is a video, which folders are looked in, the
- * order and search of the list, and paths.
+ * order and search of the list, and paths. Names, launch targets, file URLs,
+ * the order of names and matching a search are LuneOS.Components' FileLists,
+ * as in the other apps.
  */
 
 // What the scan lists: appinfo.json's mimeTypes, and .ts, which is left out
@@ -33,17 +36,11 @@ function nameFilters() {
     return videoExtensions.map(function(e) { return "*." + e; });
 }
 
-function extensionOf(name) {
-    var base = String(name).split("/").pop();
-    var dot = base.lastIndexOf(".");
-    return dot > 0 ? base.substr(dot + 1).toLowerCase() : "";
-}
-
 function isVideo(name) {
     var base = String(name).split("/").pop();
     if (base.charAt(0) === ".")
         return false;
-    return videoExtensions.indexOf(extensionOf(base)) >= 0;
+    return videoExtensions.indexOf(LC.FileLists.extensionOf(base)) >= 0;
 }
 
 // How deep below a root the scan goes, and how many folders it reads at
@@ -90,13 +87,6 @@ function volumeOf(path, roots) {
     return "";
 }
 
-// The name shown: the file name without its extension.
-function displayName(path) {
-    var base = String(path).split("/").pop();
-    var dot = base.lastIndexOf(".");
-    return dot > 0 ? base.substr(0, dot) : base;
-}
-
 // The folder a file is in, relative to its root ("" at the root itself).
 function folderOf(path, roots) {
     var dir = String(path).substring(0, String(path).lastIndexOf("/"));
@@ -109,43 +99,12 @@ function folderOf(path, roots) {
     return dir;
 }
 
-// A launch target ("/path", "file:///path", percent-encoded or not) as a
-// local path, or "" for anything that is not a local file.
-function localPath(target) {
-    var t = String(target === undefined || target === null ? "" : target).trim();
-    if (t.indexOf("file://") === 0) {
-        t = t.substr(7);
-        // file://localhost/path
-        if (t.charAt(0) !== "/") {
-            var slash = t.indexOf("/");
-            if (slash < 0 || t.substring(0, slash) !== "localhost")
-                return "";
-            t = t.substr(slash);
-        }
-        try {
-            t = decodeURIComponent(t);
-        } catch (e) {
-            return "";
-        }
-    }
-    if (t.charAt(0) !== "/")
-        return "";
-    return t;
-}
-
-// The file URL of a path, with the characters a URL cannot hold encoded.
-function fileUrl(path) {
-    return "file://" + String(path).split("/").map(function(part) {
-        return encodeURIComponent(part);
-    }).join("/");
-}
-
 // The SubRip files that go with a video: the same name with .srt, then
 // with a language between ("movie.en.srt" goes with "movie.mkv") among
 // the names in its folder.
 function subtitleCandidates(videoPath, namesInFolder) {
     var dir = String(videoPath).substring(0, String(videoPath).lastIndexOf("/") + 1);
-    var base = displayName(videoPath);
+    var base = LC.FileLists.displayName(videoPath);
     var exact = [];
     var withLanguage = [];
     (namesInFolder || []).forEach(function(name) {
@@ -164,34 +123,12 @@ function subtitleCandidates(videoPath, namesInFolder) {
 
 // The language part of "movie.en.srt" for the picker ("en"), or "".
 function subtitleLabel(videoPath, srtPath) {
-    var base = displayName(videoPath);
-    var stem = displayName(srtPath);
+    var base = LC.FileLists.displayName(videoPath);
+    var stem = LC.FileLists.displayName(srtPath);
     return stem.length > base.length + 1 ? stem.substr(base.length + 1) : "";
 }
 
 // ---- order and search -------------------------------------------------------
-
-// "Episode 2" before "Episode 10".
-function naturalCompare(a, b) {
-    var ax = String(a).toLowerCase().match(/(\d+|\D+)/g) || [];
-    var bx = String(b).toLowerCase().match(/(\d+|\D+)/g) || [];
-    for (var i = 0; i < Math.min(ax.length, bx.length); i++) {
-        var x = ax[i], y = bx[i];
-        if (x === y)
-            continue;
-        var nx = /^\d/.test(x), ny = /^\d/.test(y);
-        if (nx && ny) {
-            var d = parseInt(x, 10) - parseInt(y, 10);
-            if (d !== 0)
-                return d < 0 ? -1 : 1;
-            if (x.length !== y.length)
-                return x.length - y.length;
-            continue;
-        }
-        return x.localeCompare(y);
-    }
-    return ax.length - bx.length;
-}
 
 // files: [{path, name, size, modified (ms)}], a new array. "name" A-Z,
 // "date" newest first, "size" largest first; ties by name.
@@ -205,28 +142,17 @@ function sorted(files, order) {
             c = (b.size || 0) - (a.size || 0);
         if (c !== 0)
             return c < 0 ? -1 : 1;
-        return naturalCompare(displayName(a.name || a.path), displayName(b.name || b.path))
+        return LC.FileLists.naturalCompare(LC.FileLists.displayName(a.name || a.path), LC.FileLists.displayName(b.name || b.path))
                 || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
     });
     return copy;
 }
 
-// Folds case and accents, so "cafe" finds "Café".
-function fold(s) {
-    var t = String(s).toLowerCase();
-    if (t.normalize)
-        t = t.normalize("NFD").replace(/[̀-ͯ]/g, "");
-    return t;
-}
-
-// The files whose name or folder has every word of query in it.
+// The files whose name or folder has every word of query in it, case and
+// accents aside.
 function filter(files, query, roots) {
-    var words = fold(query).split(/\s+/).filter(function(w) { return w !== ""; });
-    if (words.length === 0)
-        return files.slice();
     return files.filter(function(f) {
-        var hay = fold(displayName(f.path) + " " + folderOf(f.path, roots || []));
-        return words.every(function(w) { return hay.indexOf(w) >= 0; });
+        return LC.FileLists.matches(LC.FileLists.displayName(f.path) + " " + folderOf(f.path, roots || []), query);
     });
 }
 

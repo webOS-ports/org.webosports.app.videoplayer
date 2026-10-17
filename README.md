@@ -6,6 +6,25 @@ picking up where you left off.
 
 A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/mindphone-library.png" height="300" alt="Library on a phone"></td>
+    <td align="center"><img src="docs/screenshots/mindphone-player.png" height="180" alt="Player"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Library, mindphone</sub></td>
+    <td align="center"><sub>Player, paused with its controls, mindphone</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="docs/screenshots/touchpad-library.png" height="300" alt="Library on a tablet"></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><sub>Library, HP TouchPad</sub></td>
+  </tr>
+</table>
+
 ## Features
 
 **Library**

@@ -543,6 +543,20 @@ TestCase {
         compare(quits, 1, "then the app");
     }
 
+    // The card shell covers the status bar while the player is open
+    // ("LuneOS_fullscreen"), not over the library.
+    function test_the_player_is_fullscreen() {
+        startApp();
+        verify(app.windowProperties["LuneOS_fullscreen"] !== "true", "the library keeps the bar");
+        play("Movies/Big Buck.mp4");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true");
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(app.windowProperties["LuneOS_fullscreen"], "false");
+        play("Movies/Big Buck.mp4");
+        compare(app.windowProperties["LuneOS_fullscreen"], "true", "and again");
+    }
+
     // Launched with a file before the scan is done: the player learns of
     // the file when it is, and the library gets its picture.
     function test_launch_before_the_scan_gets_a_picture() {

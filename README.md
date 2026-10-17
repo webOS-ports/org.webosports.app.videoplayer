@@ -66,6 +66,10 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
 - On a tall screen a wide video is turned to fill it, the way the device
   is held (orientation sensor); the turn button turns it back or round.
   Off in the app menu ("Turn Wide Videos on Tall Screens").
+- The player covers the whole screen, status bar and gesture area too
+  (with a card shell that has luna-next-cardshell's "LuneOS_fullscreen"
+  window property; a flick up from the bottom edge leaves it). The
+  library keeps the status bar.
 - Keeps the screen on while a video plays, and only then.
 - Pauses when the card goes to the background, when a phone call starts
   (oFono), and shows it as paused when the sound system pauses it.

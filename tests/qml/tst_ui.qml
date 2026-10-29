@@ -41,6 +41,19 @@ TestCase {
     property var app: null
     property string profile: Settings.profileName
     property int quits: 0
+    // The bus subscriptions the app makes: uri, args, cancelled.
+    property var subscriptions: []
+
+    function fakeSubscribe(uri, json, onReply, onError) {
+        var entry = { uri: uri, args: JSON.parse(json), cancelled: false };
+        test.subscriptions.push(entry);
+        return { cancel: function() { entry.cancelled = true; } };
+    }
+
+    // The display holds asked for, and whether each still is.
+    function screenHolds() {
+        return subscriptions.filter(function(s) { return s.uri === "luna://com.palm.display/control/setProperty"; });
+    }
 
     function init_data() {
         return [{ tag: Settings.profileName + " " + Settings.displayWidth + "x" + Settings.displayHeight }];
@@ -64,10 +77,12 @@ TestCase {
             engineSource: Qt.resolvedUrl("mocks/FakeEngine.qml"),
             probePlayerSource: Qt.resolvedUrl("mocks/FakeProbePlayer.qml"),
             scanRoots: [root],
-            quitOnBack: false
+            quitOnBack: false,
+            busSubscribe: fakeSubscribe
         });
         verify(app !== null, "main.qml made");
         quits = 0;
+        subscriptions = [];
         app.quitRequested.connect(function() { test.quits++; });
         app.resume.videos = "{}";
         app.cache.facts = "{}";
@@ -300,15 +315,23 @@ TestCase {
     function test_play_pause_and_jumps() {
         startApp();
         var e = play("Movies/Big Buck.mp4");
+        var holds = screenHolds();
+        compare(holds.length, 1, "one hold while playing");
+        compare(holds[0].args, { requestBlock: true, client: "org.webosports.app.videoplayer" });
+        verify(!holds[0].cancelled);
         clickButton("playButton");
         verify(!e.playing);
         verify(!app.player.wantPlay);
         tryCompare(app, "screenBlocked", false, 1000, "the screen let go while paused");
+        verify(holds[0].cancelled, "the call cancelled");
         wait(app.player.hideDelay + 200);
         verify(app.player.controlsShown, "the bars stay while paused");
         clickButton("playButton");
         verify(e.playing);
         tryCompare(app, "screenBlocked", true, 1000);
+        holds = screenHolds();
+        compare(holds.length, 2, "held again");
+        verify(!holds[1].cancelled);
         var before = e.position;
         clickButton("forwardButton");
         verify(e.position >= before + 9900, "forward 10 s: " + before + " -> " + e.position);
@@ -529,6 +552,7 @@ TestCase {
         tryVerify(function() { return app.player.errorText !== ""; }, 3000);
         compare(findChild(app.player, "errorLabel").text, "Could not decode the video (stand-in).");
         verify(!app.screenBlocked);
+        verify(screenHolds().every(function(h) { return h.cancelled; }), "not held for a video that does not play");
         keyClick(Qt.Key_Escape);
         verify(!app.player.isOpen);
     }
@@ -543,6 +567,7 @@ TestCase {
         keyClick(Qt.Key_Escape);
         verify(!app.player.isOpen, "then the player");
         verify(!app.screenBlocked);
+        verify(screenHolds().length > 0 && screenHolds().every(function(h) { return h.cancelled; }), "every hold let go");
         compare(quits, 0);
         keyClick(Qt.Key_Escape);
         compare(quits, 1, "then the app");

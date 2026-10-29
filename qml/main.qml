@@ -187,48 +187,39 @@ WebOSWindow {
         name: "org.webosports.app.videoplayer"
     }
 
+    // function(uri, json, onReply, onError): a subscription on the bus,
+    // returning the call (with cancel()); the tests replace it.
+    property var busSubscribe: function(uri, json, onReply, onError) {
+        return service.subscribe(uri, json, onReply || function() {}, onError || function() {});
+    }
+
     /*
-     * The screen kept on while a video plays: luna-displaymanager's
-     * "requestBlock" holds the display as it is (no dimming, no timeout)
-     * for as long as the call stays open, and cancelling the call lets go.
-     * Needs "display.operation". Paused, ended or in the background, it is
-     * let go.
+     * The screen kept on while a video plays. Needs "display.operation".
+     * Paused, ended or in the background, it is let go.
      */
     readonly property bool keepScreenOn: playerView.isOpen && playerView.engine !== null
                                          && playerView.engine.playing && active
-    property var screenBlockCall: null
-    readonly property bool screenBlocked: screenBlockCall !== null
-    onKeepScreenOnChanged: updateScreenBlock(keepScreenOn)
+    readonly property bool screenBlocked: screenHold.blocked
 
-    function updateScreenBlock(on) {
-        if (on && !screenBlockCall) {
-            // The desktop stand-in for the bus returns no call object.
-            screenBlockCall = service.subscribe("luna://com.palm.display/control/setProperty",
-                                                JSON.stringify({ "requestBlock": true, "client": "org.webosports.app.videoplayer" }),
-                                                function() {},
-                                                function(error) { console.warn("Could not keep the screen on: " + error); })
-                              || ({});
-            playerView.log("screen", { blocked: true });
-        } else if (!on && screenBlockCall) {
-            if (typeof screenBlockCall.cancel === "function")
-                screenBlockCall.cancel();
-            screenBlockCall = null;
-            playerView.log("screen", { blocked: false });
-        }
+    KeepScreenOn {
+        id: screenHold
+        clientName: "org.webosports.app.videoplayer"
+        subscribe: appWindow.busSubscribe
+        active: appWindow.keepScreenOn
+        onBlockedChanged: playerView.log("screen", { blocked: blocked })
     }
 
     /*
      * The player covers the whole screen, the status bar and the gesture
-     * area too, unless its fullscreen button said otherwise (prefs): the
-     * card shell makes the card fullscreen while the window property
-     * "LuneOS_fullscreen" is "true" (luna-next-cardshell's
-     * CardWindowWrapper); a flick up from the bottom edge still leaves it.
-     * The library keeps the bar. A shell without this ignores the property.
+     * area too, unless its fullscreen button said otherwise (prefs); a
+     * flick up from the bottom edge still leaves it. The library keeps the
+     * bar.
      */
     readonly property bool fullScreen: playerView.isOpen && preferences.fullScreen
-    onFullScreenChanged: {
-        setWindowProperty("LuneOS_fullscreen", fullScreen ? "true" : "false");
-        playerView.log("fullscreen", { on: fullScreen });
+    onFullScreenChanged: playerView.log("fullscreen", { on: fullScreen })
+    WindowFullScreen {
+        window: appWindow
+        active: appWindow.fullScreen
     }
 
     // A phone call starting pauses the video. Without oFono's QML module

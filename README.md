@@ -98,6 +98,15 @@ or a `file://` URL. More parameters, for scripts and tests: `position`
 `pause`, `play`, `close`) and `snapshot` (a PNG of the app's window, drawn
 by the app, with `snapshotDelay`).
 
+## Depends on
+
+- [luneos-components](https://github.com/webOS-ports/luneos-components):
+  `LuneOS.Components`, `LuneOS.Forms`, `LuneOS.System` (a version with
+  `KeepScreenOn` and `WindowFullScreen`, which hold the screen on while a
+  video plays and make the player fullscreen), the LuneOS Qt Quick
+  Controls style, and on a development machine its QML stand-ins for
+  the C++ plugins.
+
 ## The platform underneath
 
 - **Software decoding** (GStreamer's libav decoders) is what plays video on
@@ -155,7 +164,7 @@ stand-ins:
   state go to `build/test-output/ui/`.
 
 `tests/mutation-check.py` breaks the app in one way at a time and checks
-that a test fails: 33 ways, all caught (2026-10-16).
+that a test fails: 34 ways, all caught (2026-10-29).
 
 There is no C++ in the app, so no compiler, sanitizer or C/C++ static
 analysis applies; `qmllint` reports only what the desktop stand-ins cannot

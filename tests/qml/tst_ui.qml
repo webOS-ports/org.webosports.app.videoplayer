@@ -577,7 +577,7 @@ TestCase {
     // ("LuneOS_fullscreen"), not over the library.
     function test_the_player_is_fullscreen() {
         startApp();
-        verify(app.windowProperties["LuneOS_fullscreen"] !== "true", "the library keeps the bar");
+        compare(app.windowProperties["LuneOS_fullscreen"], "false", "the library keeps the bar, said from the start");
         play("Movies/Big Buck.mp4");
         compare(app.windowProperties["LuneOS_fullscreen"], "true");
         keyClick(Qt.Key_Escape);

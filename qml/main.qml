@@ -211,16 +211,15 @@ WebOSWindow {
 
     /*
      * The player covers the whole screen, the status bar and the gesture
-     * area too, unless its fullscreen button said otherwise (prefs): the
-     * card shell makes the card fullscreen while the window property
-     * "LuneOS_fullscreen" is "true" (luna-next-cardshell's
-     * CardWindowWrapper); a flick up from the bottom edge still leaves it.
-     * The library keeps the bar. A shell without this ignores the property.
+     * area too, unless its fullscreen button said otherwise (prefs); a
+     * flick up from the bottom edge still leaves it. The library keeps the
+     * bar.
      */
     readonly property bool fullScreen: playerView.isOpen && preferences.fullScreen
-    onFullScreenChanged: {
-        setWindowProperty("LuneOS_fullscreen", fullScreen ? "true" : "false");
-        playerView.log("fullscreen", { on: fullScreen });
+    onFullScreenChanged: playerView.log("fullscreen", { on: fullScreen })
+    WindowFullScreen {
+        window: appWindow
+        active: appWindow.fullScreen
     }
 
     // A phone call starting pauses the video. Without oFono's QML module

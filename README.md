@@ -79,6 +79,12 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
 - Keeps the screen on while a video plays, and only then.
 - Pauses when the card goes to the background, when a phone call starts
   (oFono), and shows it as paused when the sound system pauses it.
+- A Bluetooth headset's buttons work with the app in the background or the
+  screen off: while a video is open it is a media session of
+  com.webos.service.mediacontroller, activated whenever it starts or
+  resumes playing, with its title and length. Play and pause are play and
+  pause; next and previous jump 10 seconds. audiod's pause for a call
+  reaches it the same way.
 - The back gesture closes a picker, then the player, then the app.
 - A video that does not start within 15 seconds - some files hang the
   hardware decoder before the first picture - is given up on with a
@@ -148,6 +154,10 @@ stand-ins:
   sizes, dates; what is a video, which folders, launch targets, subtitle
   files by name, natural order, search; resuming, the remembered state,
   the load time-out, speeds, jumps, turning, track names.
+- `tst_mediasession`: the media session against a stand-in
+  mediacontroller - registered only while a video is open and ended with
+  the player or the app, activated on every start, the status, title and
+  length it sends, what each key asks for, retries after a refusal.
 - `tst_scanner`: the scan over `tests/data/library` (hidden, system and too
   deep folders left out, a vanished folder), the length probe with a
   stand-in player (a hang stops it and its player is kept, a rescan while
@@ -160,11 +170,13 @@ stand-ins:
   fill, fullscreen, the screen lock, turning, resuming, a video that
   never starts, a broken one, the back gesture, launch parameters (also before the scan is done),
   interruptions, the end of a video, the library's pictures, reading
-  lengths switched off after a crash, and the bars fitting each screen. Screenshots of each
+  lengths switched off after a crash, a headset's keys through the media
+  session, and the bars fitting each screen. Screenshots of each
   state go to `build/test-output/ui/`.
 
 `tests/mutation-check.py` breaks the app in one way at a time and checks
-that a test fails: 34 ways, all caught (2026-10-29).
+that a test fails: 46 ways. The other 34 were all caught on 2026-10-29,
+the 12 for the media session on 2026-10-30.
 
 There is no C++ in the app, so no compiler, sanitizer or C/C++ static
 analysis applies; `qmllint` reports only what the desktop stand-ins cannot

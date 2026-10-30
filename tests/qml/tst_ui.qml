@@ -50,6 +50,22 @@ TestCase {
         return { cancel: function() { entry.cancelled = true; } };
     }
 
+    // The media session's bus: its registration (with the reply and
+    // whether it was cancelled) and what was sent on it.
+    property var mediaRegistrations: []
+    property var mediaCalls: []
+    property QtObject fakeMediaBus: QtObject {
+        function subscribe(uri, json, onReply, onError) {
+            var entry = { uri: uri, args: JSON.parse(json), cancelled: false,
+                          reply: function(p) { onReply({ payload: JSON.stringify(p) }); } };
+            test.mediaRegistrations.push(entry);
+            return { cancel: function() { entry.cancelled = true; } };
+        }
+        function call(uri, json, onReply, onError) {
+            test.mediaCalls.push({ method: uri.split("/").pop(), args: JSON.parse(json) });
+        }
+    }
+
     // The display holds asked for, and whether each still is.
     function screenHolds() {
         return subscriptions.filter(function(s) { return s.uri === "luna://com.palm.display/control/setProperty"; });
@@ -78,11 +94,14 @@ TestCase {
             probePlayerSource: Qt.resolvedUrl("mocks/FakeProbePlayer.qml"),
             scanRoots: [root],
             quitOnBack: false,
-            busSubscribe: fakeSubscribe
+            busSubscribe: fakeSubscribe,
+            mediaBus: fakeMediaBus
         });
         verify(app !== null, "main.qml made");
         quits = 0;
         subscriptions = [];
+        mediaRegistrations = [];
+        mediaCalls = [];
         app.quitRequested.connect(function() { test.quits++; });
         app.resume.videos = "{}";
         app.cache.facts = "{}";
@@ -732,6 +751,38 @@ TestCase {
         e.playing = false;
         verify(!app.player.wantPlay);
         compare(playerChild("playButton").image, "play");
+    }
+
+    // A headset's keys, through mediacontroller, while a video is open.
+    function test_media_session_follows_the_player() {
+        startApp();
+        compare(mediaRegistrations.length, 0, "no session for the library");
+        var e = play("Movies/Big Buck.mp4");
+        compare(mediaRegistrations.length, 1, "a session for the open video");
+        var reg = mediaRegistrations[0];
+        compare(reg.args.appId, "org.webosports.app.videoplayer");
+        reg.reply({ returnValue: true, subscribed: true });
+        var activations = mediaCalls.filter(function(c) { return c.method === "activateMediaSession"; });
+        compare(activations.length, 1, "playing takes the headset's keys");
+        var meta = mediaCalls.filter(function(c) { return c.method === "setMediaMetaData"; });
+        compare(meta[0].args.mediaMetaData.title, app.player.title);
+
+        reg.reply({ returnValue: true, keyEvent: "pause", mediaId: reg.args.mediaId });
+        verify(!e.playing, "the headset's pause pauses");
+        verify(!app.player.wantPlay);
+        reg.reply({ returnValue: true, keyEvent: "play", mediaId: reg.args.mediaId });
+        verify(e.playing, "and play plays");
+        activations = mediaCalls.filter(function(c) { return c.method === "activateMediaSession"; });
+        compare(activations.length, 2, "resuming takes the keys again");
+        var before = e.position;
+        reg.reply({ returnValue: true, keyEvent: "next", mediaId: reg.args.mediaId });
+        verify(e.position >= before + 9900, "next jumps 10 s: " + before + " -> " + e.position);
+        reg.reply({ returnValue: true, keyEvent: "previous", mediaId: reg.args.mediaId });
+        verify(e.position <= before + 1000, "previous jumps back");
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function() { return !app.player.isOpen; }, 1000, "the player closed");
+        verify(reg.cancelled, "the session ends with the player");
     }
 
     function test_end_of_the_video() {

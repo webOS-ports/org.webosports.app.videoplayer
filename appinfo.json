@@ -12,7 +12,7 @@
     "icon": "icon.png",
     "splashicon": "icon-256x256.png",
     "uiRevision": "2",
-    "requiredPermissions": [ "display.operation" ],
+    "requiredPermissions": [ "display.operation", "mediacontroller.query" ],
     "mimeTypes": [
         { "mime": "video/mp4", "extension": "mp4" },
         { "mime": "video/x-m4v", "extension": "m4v" },

@@ -28,6 +28,7 @@ import LuneOS.System 1.0
 
 import LuneOS.Components 1.0 as LC
 import "js/Library.js" as Library
+import "js/MediaSession.js" as Session
 
 /*
  * Videos: the videos on the device, and a player for them.
@@ -68,6 +69,7 @@ WebOSWindow {
     property alias library: libraryPage
     property alias appMenu: appMenu
     property alias probeGuard: probeGuard
+    property alias session: mediaSession
 
     // The back gesture in the library ends the app (not in the tests).
     property bool quitOnBack: true
@@ -193,6 +195,9 @@ WebOSWindow {
         return service.subscribe(uri, json, onReply || function() {}, onError || function() {});
     }
 
+    // The media session's bus (call() and subscribe()); the tests replace it.
+    property var mediaBus: service
+
     /*
      * The screen kept on while a video plays. Needs "display.operation".
      * Paused, ended or in the background, it is let go.
@@ -232,6 +237,33 @@ WebOSWindow {
         target: callWatcher.item
         ignoreUnknownSignals: true
         function onCallStarted() { playerView.interrupt("call"); }
+    }
+
+    /*
+     * A media session of com.webos.service.mediacontroller while a video is
+     * open: a Bluetooth headset's buttons reach the player in the background
+     * too, and audiod can pause it for a call. Next and previous jump, as
+     * the player's 10 s buttons do. Needs "mediacontroller.query".
+     */
+    MediaSession {
+        id: mediaSession
+        bus: appWindow.mediaBus
+        appId: "org.webosports.app.videoplayer"
+        active: playerView.isOpen
+        playing: playerView.engine !== null && playerView.engine.playing
+        title: playerView.title
+        durationMs: playerView.engine !== null ? playerView.engine.duration : 0
+        onActionRequested: function(action) {
+            playerView.log("mediaKey", { action: action });
+            if (action === "play")
+                playerView.play();
+            else if (action === "pause")
+                playerView.pause();
+            else if (action === "forward")
+                playerView.jump(Session.JUMP_MS);
+            else if (action === "back")
+                playerView.jump(-Session.JUMP_MS);
+        }
     }
 
     /* {"target": path} plays it; with "position" (ms), "subtitle" ("off",

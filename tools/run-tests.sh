@@ -1,6 +1,7 @@
 #!/bin/sh
 # Runs every test on the build host: the logic in qml/js (tst_subtitles,
-# tst_format, tst_library, tst_playback), the scan and the length probe
+# tst_format, tst_library, tst_playback), the media session
+# (tst_mediasession), the scan and the length probe
 # (tst_scanner) and the app itself with a stand-in player (tst_ui), the
 # last once per screen in PROFILES - by default the TouchPad, the
 # mindphone and the Q25 - with luneos-components' desktop stand-ins.
@@ -28,7 +29,7 @@ run() {
 }
 
 status=0
-for t in subtitles format library playback scanner; do
+for t in subtitles format library playback scanner mediasession; do
     rm -rf "$CONF/config" "$CONF/cache"
     run -input tests/qml/tst_$t.qml "$@" || status=1
 done

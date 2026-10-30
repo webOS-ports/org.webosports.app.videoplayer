@@ -85,6 +85,35 @@ MUTATIONS = [
      "active: !playerView.isOpen", "ui", "mindphone"),
     ("library rows made again on every change", "qml/LibraryPage.qml", "                rowModel.set(i, r);",
      "                { rowModel.remove(i); rowModel.insert(i, r); }", "ui", "mindphone"),
+    ("media session registered for the library", "qml/MediaSession.qml",
+     "if (!bus || !appId || !active || _call)", "if (!bus || !appId || _call)", "mediasession", None),
+    ("media session kept after the player closed", "qml/MediaSession.qml",
+     "onActiveChanged: active ? register() : unregister()", "onActiveChanged: if (active) register()",
+     "mediasession", None),
+    ("media session activated only once", "qml/MediaSession.qml",
+     "if (playing && (all || _sentStatus !== status))", "if (playing && all)", "mediasession", None),
+    ("a paused video sent as stopped", "qml/js/MediaSession.js",
+     "return open ? \"PLAYSTATE_PAUSED\" : \"PLAYSTATE_STOPPED\";", "return \"PLAYSTATE_STOPPED\";",
+     "mediasession", None),
+    ("a headset's stop ignored", "qml/js/MediaSession.js", "    case \"pause\":\n    case \"stop\":",
+     "    case \"pause\":", "mediasession", None),
+    ("a headset's next ignored", "qml/js/MediaSession.js", "    case \"fastForward\":\n        return \"forward\";",
+     "    case \"fastForward\":\n        return \"\";", "mediasession", None),
+    ("length sent in ms", "qml/js/MediaSession.js", "String(Math.round(durationMs / 1000))", "String(durationMs)",
+     "mediasession", None),
+    ("another session's keys obeyed", "qml/js/MediaSession.js",
+     "if (reply.mediaId !== undefined && reply.mediaId !== mediaId)", "if (false)", "mediasession", None),
+    # The app's wiring, against its own test: tst_ui as a whole has a probe
+    # test that depends on the test files' times on disk.
+    ("media session for the library too", "qml/main.qml", "        active: playerView.isOpen\n",
+     "        active: true\n", "ui::Ui::test_media_session_follows_the_player", "mindphone"),
+    ("media session never told it plays", "qml/main.qml",
+     "        playing: playerView.engine !== null && playerView.engine.playing\n", "        playing: false\n",
+     "ui::Ui::test_media_session_follows_the_player", "mindphone"),
+    ("headset's next does not jump", "qml/main.qml", "                playerView.jump(Session.JUMP_MS);",
+     "                playerView.jump(0);", "ui::Ui::test_media_session_follows_the_player", "mindphone"),
+    ("headset's pause ignored", "qml/main.qml", "            else if (action === \"pause\")\n                playerView.pause();",
+     "", "ui::Ui::test_media_session_follows_the_player", "mindphone"),
 ]
 
 
@@ -104,7 +133,11 @@ def run_test(name, profile, conf):
             text = open(stub).read().replace('var defaultProfile = "desktop";', 'var defaultProfile = "%s";' % profile)
             open(stub, "w").write(text)
         args[1:1] = ["-import", os.path.join(conf, "profile-" + profile)]
+    # "ui::Ui::test_x" runs that one test function only.
+    name, _, function = name.partition("::")
     args += ["-input", os.path.join(HERE, "tests/qml/tst_%s.qml" % name)]
+    if function:
+        args.append(function)
     return subprocess.run(args, cwd=HERE, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           timeout=900).returncode
 

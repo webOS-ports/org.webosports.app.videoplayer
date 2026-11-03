@@ -66,6 +66,110 @@ TestCase {
         }
     }
 
+    // ---- a stand-in org.webosports.service.videos ---------------------------
+
+    // Calls made: {method, args}. videoFail: method -> error reply.
+    property var videoCalls: []
+    property var videoFail: ({})
+    property bool videoServiceThere: true
+    // itemId -> held getItem replies (functions), released by the test.
+    property var videoHeld: ({})
+    property var videoHold: []
+
+    function movie(i) {
+        return { id: "m" + i, kind: "movie", title: "Movie " + (i < 10 ? "0" : "") + i, year: 2000 + i, durationMs: 60000,
+                 playable: true, hasChildren: false, artwork: {} };
+    }
+    function episodeOf(season, n) {
+        return { id: "s" + season + "e" + n, kind: "episode", title: "Episode " + n, seriesTitle: "Test Show", season: season,
+                 episode: n, durationMs: 60000, playable: true, hasChildren: false, artwork: {} };
+    }
+    readonly property var showItem: ({ id: "show1", kind: "show", title: "Test Show", playable: false, hasChildren: true, artwork: {} })
+
+    function videoAnswer(method, a) {
+        if (method === "listSources")
+            return { sources: [
+                { sourceId: "acc-jf", name: "Home Jellyfin", provider: "jellyfin", icon: "",
+                  features: { search: true, progress: true, continueWatching: true, live: false } },
+                { sourceId: "acc-up|uuid-1", name: "NAS", provider: "upnp", icon: "",
+                  features: { search: false, progress: false, continueWatching: false, live: false } }] };
+        if (method === "listSections")
+            return a.sourceId === "acc-jf"
+                ? { sections: [{ id: "continue", title: "Continue Watching", layout: "row" },
+                               { id: "empty", title: "Next Up", layout: "row" },
+                               { id: "movies", title: "Movies", layout: "grid" },
+                               { id: "shows", title: "Shows", layout: "grid" }] }
+                : { sections: [{ id: "c:2", title: "Video", layout: "grid" }] };
+        if (method === "listItems") {
+            if (a.sectionId === "continue") {
+                var m = movie(3);
+                m.progress = { positionMs: 30000, watched: false };
+                return { items: [m, episodeOf(1, 2)], nextCursor: null };
+            }
+            if (a.sectionId === "movies") {
+                var start = a.cursor ? Number(a.cursor) : 0;
+                var all = [];
+                for (var i = 0; i < 60; i++)
+                    all.push(movie(i));
+                var page = all.slice(start, start + a.limit);
+                return { items: page, nextCursor: start + page.length < all.length ? String(start + page.length) : null };
+            }
+            if (a.sectionId === "shows")
+                return { items: [showItem], nextCursor: null };
+            if (a.sectionId === "c:2")
+                return { items: [{ id: "f1", kind: "collection", title: "Folder", playable: false, hasChildren: true, artwork: {} }],
+                         nextCursor: null };
+            if (a.parentId === "f1")
+                return { items: [{ id: "v1", kind: "video", title: "Home video", playable: true, hasChildren: false, artwork: {} }],
+                         nextCursor: null };
+            return { items: [], nextCursor: null };
+        }
+        if (method === "getItem") {
+            if (a.itemId === "show1")
+                return { item: { id: "show1", kind: "show", title: "Test Show", description: "A show.", artwork: {},
+                                 seasons: [{ id: "season1", kind: "season", title: "Season 1" },
+                                           { id: "season2", kind: "season", title: "Season 2" }] } };
+            if (a.itemId === "season1")
+                return { item: { id: "season1", kind: "season", title: "Season 1",
+                                 children: [episodeOf(1, 1), episodeOf(1, 2), episodeOf(1, 3)] } };
+            if (a.itemId === "season2")
+                return { item: { id: "season2", kind: "season", title: "Season 2", children: [episodeOf(2, 1)] } };
+        }
+        if (method === "search")
+            return { items: a.query === "night" ? [movie(7)] : [], nextCursor: null };
+        if (method === "resolve")
+            return { stream: { url: "https://server.example/" + a.itemId + "/master.m3u8?ApiKey=k", protocol: "hls",
+                               subtitles: [], session: { play: "ps-" + a.itemId }, drm: null } };
+        if (method === "reportProgress")
+            return {};
+        return null;
+    }
+
+    function fakeVideoCall(uri, json, onReply, onError) {
+        var method = uri.split("/").pop();
+        var args = JSON.parse(json);
+        test.videoCalls.push({ method: method, args: args });
+        var answer = function() {
+            if (!test.videoServiceThere) {
+                onError({ payload: JSON.stringify({ returnValue: false, errorCode: -1, errorText: "Unknown service" }) });
+                return;
+            }
+            var failure = test.videoFail[method];
+            var answer = failure ? null : test.videoAnswer(method, args);
+            var reply = failure ? failure : (answer === null ? { returnValue: false, errorCode: "NOT_FOUND" }
+                                                             : Object.assign({ returnValue: true }, answer));
+            onReply({ payload: JSON.stringify(reply) });
+        };
+        if (method === "getItem" && test.videoHold.indexOf(args.itemId) >= 0)
+            test.videoHeld[args.itemId] = answer;
+        else
+            Qt.callLater(answer);
+    }
+
+    function videoCallsOf(method) {
+        return videoCalls.filter(function(c) { return c.method === method; });
+    }
+
     // The display holds asked for, and whether each still is.
     function screenHolds() {
         return subscriptions.filter(function(s) { return s.uri === "luna://com.palm.display/control/setProperty"; });
@@ -95,7 +199,8 @@ TestCase {
             scanRoots: [root],
             quitOnBack: false,
             busSubscribe: fakeSubscribe,
-            mediaBus: fakeMediaBus
+            mediaBus: fakeMediaBus,
+            busCall: fakeVideoCall
         });
         verify(app !== null, "main.qml made");
         quits = 0;
@@ -120,9 +225,16 @@ TestCase {
     }
 
     function cleanup() {
+        videoCalls = [];
+        videoFail = ({});
+        videoHold = [];
+        videoHeld = ({});
+        videoServiceThere = true;
         Playback.loadTimeoutMs = 15000;
         Playback.streamLoadTimeoutMs = 30000;
         if (app) {
+            // Closed while the probe reads a file is no crash in the probe.
+            app.probeGuard.mark("");
             app.destroy();
             app = null;
         }
@@ -928,5 +1040,227 @@ TestCase {
         var panel = playerChild("sheetPanel");
         verify(panel.width <= stage.width && panel.height <= stage.height);
         shot("subtitle-picker");
+    }
+
+    // ---- video servers ---------------------------------------------------------
+
+    function browseChild(name) {
+        return findChild(app.browse, name);
+    }
+
+    function openServer(sourceId) {
+        tryVerify(function() { return app.sources.list.length === 2; }, 2000, "the servers listed");
+        var bar = findChild(app.library, "sourceBar");
+        verify(bar.visible, "the libraries bar shown");
+        var chip = findChild(bar, "source:" + sourceId);
+        verify(chip, sourceId);
+        mouseClick(chip);
+        tryVerify(function() { return app.browse.visible; }, 1000, "the server's library shown");
+        tryVerify(function() { return browseChild("homeView") !== null && app.browse.current.sections !== null; }, 2000,
+                  "its home");
+    }
+
+    function tapTile(id) {
+        var tile = null;
+        tryVerify(function() { tile = browseChild("tile:" + id); return tile !== null && tile.visible; }, 2000, "tile " + id);
+        mouseClick(tile);
+    }
+
+    function test_servers_are_libraries_beside_the_device() {
+        startApp();
+        openServer("acc-jf");
+        compare(findChild(app.browse, "browseHeader").title, "Home Jellyfin");
+        compare(app.library.visible, false);
+        // Rows show their videos; an empty row is not shown; libraries open.
+        tryVerify(function() { return browseChild("tile:m3") !== null; }, 2000, "Continue Watching's films");
+        verify(browseChild("tile:s1e2") !== null);
+        var empty = browseChild("row:empty");
+        verify(!empty || !empty.visible, "an empty row is left out");
+        verify(browseChild("library:movies") !== null);
+        verify(browseChild("library:shows") !== null);
+        compare(videoCallsOf("listItems").map(function(c) { return c.args.sectionId; }).sort(), ["continue", "empty"],
+                "only rows load at once");
+        shot("server-home");
+        // Back goes to this device.
+        keyClick(Qt.Key_Escape);
+        tryCompare(app, "sourceId", "");
+        verify(app.library.visible);
+        compare(quits, 0);
+    }
+
+    function test_without_the_service_there_is_no_bar() {
+        videoServiceThere = false;
+        startApp();
+        tryVerify(function() { return app.sources.generation > 0; }, 2000, "the servers asked for at the start");
+        compare(videoCallsOf("listSources").length, 1);
+        compare(app.sources.list.length, 0);
+        verify(!findChild(app.library, "sourceBar").visible);
+        compare(app.sources.errorText, "The video service does not answer.");
+    }
+
+    function test_a_library_pages_and_plays_with_progress_for_the_server() {
+        startApp();
+        openServer("acc-jf");
+        mouseClick(browseChild("library:movies"));
+        var grid = null;
+        tryVerify(function() { grid = browseChild("listView"); return grid !== null && grid.count === 50; }, 2000, "a page");
+        compare(findChild(app.browse, "levelTitle").text, "Movies");
+        grid.positionViewAtEnd();
+        tryCompare(grid, "count", 60, 2000, "the next page as the end comes into view");
+        compare(videoCallsOf("listItems").filter(function(c) { return c.args.sectionId === "movies"; })
+                .map(function(c) { return c.args.cursor || ""; }), ["", "50"]);
+        grid.positionViewAtEnd();
+        wait(100);
+        compare(videoCallsOf("listItems").filter(function(c) { return c.args.sectionId === "movies"; }).length, 2,
+                "no page after the last");
+        shot("server-grid");
+        grid.positionViewAtBeginning();
+        tapTile("m1");
+        tryVerify(function() { return app.player.started; }, 3000, "it plays");
+        var res = videoCallsOf("resolve")[0].args;
+        compare(res.sourceId, "acc-jf");
+        compare(res.itemId, "m1");
+        compare(res.prefer.maxHeight, Math.min(app.width, app.height) >= 1000 ? 1080 : 720);
+        var w = app.width, h = app.height;
+        app.width = 1920;
+        app.height = 1200;
+        compare(app.streamHeight, 1080, "a big screen asks for 1080 lines");
+        app.width = 800;
+        app.height = 1280;
+        compare(app.streamHeight, 720);
+        app.width = w;
+        app.height = h;
+        compare(app.player.title, "Movie 01");
+        compare(app.player.path, "videos:acc-jf/m1");
+        compare(app.player.stream.url, "https://server.example/m1/master.m3u8?ApiKey=k");
+        app.player.engine.seek(20000);
+        app.player.pause();
+        tryVerify(function() { return videoCallsOf("reportProgress").length > 0; }, 2000, "the pause reported");
+        var r = videoCallsOf("reportProgress").pop().args;
+        compare([r.sourceId, r.itemId, r.state, r.positionMs, r.session.play], ["acc-jf", "m1", "paused", 20000, "ps-m1"]);
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        r = videoCallsOf("reportProgress").pop().args;
+        compare([r.state, r.positionMs], ["stopped", 20000]);
+        verify(app.browse.visible, "back to the list it came from");
+        compare(browseChild("listView").count, 60, "as it was");
+        keyClick(Qt.Key_Escape);
+        tryVerify(function() { return browseChild("homeView") !== null; }, 1000, "up to the home");
+        keyClick(Qt.Key_Escape);
+        tryCompare(app, "sourceId", "");
+    }
+
+    function test_the_end_counts_as_watched() {
+        startApp();
+        openServer("acc-jf");
+        tapTile("m3");
+        tryVerify(function() { return app.player.started; }, 3000);
+        compare(app.player.resumedFrom, 0, "the stream gave no place");
+        app.player.engine.seek(app.player.engine.duration);
+        tryVerify(function() { return app.player.engine.ended; }, 3000);
+        tryVerify(function() { return videoCallsOf("reportProgress").some(function(c) { return c.args.state === "ended"; }); }, 2000);
+        var r = videoCallsOf("reportProgress").filter(function(c) { return c.args.state === "ended"; })[0].args;
+        compare(r.positionMs, app.player.engine.duration, "the whole length");
+    }
+
+    function test_a_show_opens_on_its_seasons_and_plays_on() {
+        startApp();
+        openServer("acc-jf");
+        mouseClick(browseChild("library:shows"));
+        tapTile("show1");
+        var episodes = null;
+        tryVerify(function() { episodes = browseChild("episodeList"); return episodes !== null && episodes.count === 3; }, 2000,
+                  "the first season's episodes");
+        compare(browseChild("seasonBar").count, 2);
+        shot("server-show");
+        mouseClick(browseChild("season:season2"));
+        tryCompare(episodes, "count", 1, 2000, "season 2");
+        // Season 1's answer comes after season 2 was picked again: it is
+        // not shown.
+        videoHold = ["season1"];
+        mouseClick(browseChild("season:season1"));
+        mouseClick(browseChild("season:season2"));
+        tryCompare(episodes, "count", 1, 2000);
+        videoHeld["season1"]();
+        wait(50);
+        compare(episodes.count, 1, "the late answer for the season left is dropped");
+        videoHold = [];
+        mouseClick(browseChild("season:season1"));
+        tryCompare(episodes, "count", 3, 2000);
+        episodes.positionViewAtIndex(1, ListView.Contain);
+        wait(50);
+        mouseClick(browseChild("episode:s1e2"));
+        tryVerify(function() { return app.player.started && app.player.path === "videos:acc-jf/s1e2"; }, 3000);
+        compare(app.player.title, "Test Show S1E2 – Episode 2");
+        app.player.engine.seek(12000);
+        // A headset's next: the next episode, the one left stopped there.
+        app.session.actionRequested("forward");
+        tryVerify(function() { return app.player.path === "videos:acc-jf/s1e3" && app.player.started; }, 3000, "episode 3");
+        var stops = videoCallsOf("reportProgress").filter(function(c) { return c.args.state === "stopped"; });
+        compare(stops.length, 1);
+        compare([stops[0].args.itemId, stops[0].args.positionMs], ["s1e2", 12000]);
+        // The last one has no next: 10 s on instead.
+        app.player.engine.seek(1000);
+        app.session.actionRequested("forward");
+        wait(100);
+        compare(app.player.path, "videos:acc-jf/s1e3");
+        verify(app.player.engine.position >= 11000 && app.player.engine.position < 11500, app.player.engine.position);
+        app.session.actionRequested("back");
+        tryVerify(function() { return app.player.path === "videos:acc-jf/s1e2"; }, 3000, "back to episode 2");
+    }
+
+    function test_a_media_server_folder_and_no_search() {
+        startApp();
+        openServer("acc-up|uuid-1");
+        verify(!browseChild("browseSearch").visible, "this one cannot search");
+        mouseClick(browseChild("library:c:2"));
+        tapTile("f1");
+        tapTile("v1");
+        tryVerify(function() { return app.player.started; }, 3000);
+        compare(app.player.path, "videos:acc-up|uuid-1/v1");
+        compare(videoCallsOf("reportProgress").length, 0, "nothing to report yet");
+    }
+
+    function test_search_on_the_server() {
+        startApp();
+        openServer("acc-jf");
+        var field = browseChild("browseSearch");
+        verify(field.visible);
+        field.forceActiveFocus();
+        field.text = "night";
+        field.accepted();
+        var grid = null;
+        tryVerify(function() { grid = browseChild("listView"); return grid !== null && grid.count === 1; }, 2000);
+        compare(findChild(app.browse, "levelTitle").text, "Search: “night”");
+        field.text = "nothing";
+        field.accepted();
+        tryVerify(function() { var e = browseChild("listEmpty"); return e !== null && e.visible; }, 2000);
+        compare(app.browse.stack.length, 2, "a new search takes the old one's place");
+    }
+
+    function test_errors_say_what_to_do() {
+        videoFail = { resolve: { returnValue: false, errorCode: "AUTH_EXPIRED", errorText: "x" } };
+        startApp();
+        openServer("acc-jf");
+        tapTile("m3");
+        tryVerify(function() { return /Accounts/.test(app.notice); }, 2000, app.notice);
+        verify(!app.player.isOpen);
+        var notice = browseChild("browseNotice");
+        verify(notice.visible);
+        shot("server-error");
+        videoFail = { listSections: { returnValue: false, errorCode: "SERVER_UNREACHABLE" } };
+        app.notice = "";
+        app.showSource("");
+        app.showSource("acc-jf");
+        tryVerify(function() { return /does not answer/.test(notice.text); }, 2000, notice.text);
+    }
+
+    function test_a_server_gone_goes_back_to_the_device() {
+        startApp();
+        openServer("acc-up|uuid-1");
+        videoServiceThere = false;
+        app.sources.refresh();
+        tryCompare(app, "sourceId", "", 2000);
+        verify(app.library.visible);
     }
 }

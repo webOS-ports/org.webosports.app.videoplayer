@@ -7,6 +7,9 @@ and puts the file back. A mutation that leaves every test passing is a
 hole in the tests and makes this script fail.
 
     python3 -I tests/mutation-check.py [path to luneos-components]
+
+MUTATIONS_MATCHING=<words> runs only the mutations whose description has
+those words in it.
 """
 import os
 import shutil
@@ -19,6 +22,31 @@ LC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "luneos-comp
 
 # (what it breaks, file, text, replacement, test file, profile)
 MUTATIONS = [
+    ("WebVTT voice tags shown", "qml/js/Subtitles.js", "    s = s.replace(/<[^>]*>/g, \"\");\n    s = s.replace(/\\u0001",
+     "    s = s.replace(/\\u0001", "subtitles", None),
+    ("WebVTT cue times read without hours", "qml/js/Subtitles.js", "var hours = m[1] === undefined ? 0 : parseInt(m[1], 10);",
+     "var hours = 0;", "subtitles", None),
+    ("WebVTT read as SubRip", "qml/js/Subtitles.js", "? parseVtt(text) : parseSrt(text)", "? parseSrt(text) : parseSrt(text)",
+     "subtitles", None),
+    ("ftp taken for a stream", "qml/js/Library.js", "return /^https?:\\/\\/", "return /^(?:https?|ftp):\\/\\/", "library", None),
+    ("a stream gets a file's time-out", "qml/PlayerView.qml",
+     "return streaming ? Playback.streamLoadTimeoutMs : Playback.loadTimeoutMs;", "return Playback.loadTimeoutMs;",
+     "ui::Ui::test_a_slow_stream_gets_longer_to_start", "mindphone"),
+    ("the server's position ignored", "qml/PlayerView.qml",
+     ": (stream && stream.startMs > 0 ? stream.startMs : 0));", ": 0);",
+     "ui::Ui::test_a_stream_with_its_subtitles_and_server_position", "mindphone"),
+    ("every stream subtitle on by default", "qml/PlayerView.qml",
+     "        if (want === \"\" && stream) {", "        if (false) {",
+     "ui::Ui::test_a_stream_with_its_subtitles_and_server_position", "mindphone"),
+    ("closing not reported", "qml/PlayerView.qml",
+     "            positionReported(path, at, length, \"stopped\");", "",
+     "ui::Ui::test_a_stream_with_its_subtitles_and_server_position", "mindphone"),
+    ("a stream link turned away", "qml/main.qml",
+     "        if (Library.isStreamUrl(target)) {", "        if (false) {",
+     "ui::Ui::test_a_link_as_target_plays_the_stream", "mindphone"),
+    ("a file link taken for a stream", "qml/main.qml",
+     "        if (!stream || !Library.isStreamUrl(stream.url)) {", "        if (!stream) {",
+     "ui::Ui::test_not_a_stream_link", "mindphone"),
     ("SRT decoded as Latin-1 even when UTF-8", "qml/js/Subtitles.js",
      "    if (utf8 !== null)\n        return { text: utf8, encoding: \"UTF-8\" };", "", "subtitles", None),
     ("Windows-1252 table ignored", "qml/js/Subtitles.js",
@@ -145,7 +173,10 @@ def run_test(name, profile, conf):
 def main():
     holes = 0
     with tempfile.TemporaryDirectory() as conf:
+        only = os.environ.get("MUTATIONS_MATCHING", "")
         for what, rel, old, new, test, profile in MUTATIONS:
+            if only and only not in what:
+                continue
             path = os.path.join(HERE, rel)
             original = open(path, encoding="utf-8").read()
             if original.count(old) != 1:
@@ -159,7 +190,8 @@ def main():
                 open(path, "w", encoding="utf-8").write(original)
             print("%s %s (tst_%s)" % ("caught" if caught else "MISSED", what, test))
             holes += 0 if caught else 1
-    print("%d of %d mutations caught" % (len(MUTATIONS) - holes, len(MUTATIONS)))
+    total = len([m for m in MUTATIONS if not os.environ.get("MUTATIONS_MATCHING", "") or os.environ["MUTATIONS_MATCHING"] in m[0]])
+    print("%d of %d mutations caught" % (total - holes, total))
     return 1 if holes else 0
 
 

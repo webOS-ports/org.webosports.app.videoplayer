@@ -270,6 +270,72 @@ function assOverridesToTags(text) {
     return out.replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim();
 }
 
+// ---- WebVTT -----------------------------------------------------------------
+
+// "[hh:]mm:ss.ttt" (the hours may be left out) in ms, or -1; anything after
+// it, such as a cue's settings, is ignored.
+function parseVttTimestamp(text) {
+    var m = String(text).trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})[.,](\d{1,3})/);
+    if (!m)
+        return -1;
+    var hours = m[1] === undefined ? 0 : parseInt(m[1], 10);
+    var frac = parseInt((m[4] + "00").substr(0, 3), 10);
+    return ((hours * 60 + parseInt(m[2], 10)) * 60 + parseInt(m[3], 10)) * 1000 + frac;
+}
+
+// A WebVTT cue's text as SubRip-like text: <b>, <i> and <u> kept (their
+// classes dropped), the other tags - voices, classes, ruby, timestamps -
+// taken out, and the entities WebVTT has turned into characters.
+function vttCueText(text) {
+    var s = String(text).replace(/<(\/?)([ibu])(?:\.[^>\s]*)?(?:\s[^>]*)?>/gi, "\u0001$1$2\u0002");
+    s = s.replace(/<[^>]*>/g, "");
+    s = s.replace(/\u0001(\/?)([ibu])\u0002/gi, function(all, slash, tag) {
+        return "<" + slash + tag.toLowerCase() + ">";
+    });
+    return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, "\u00a0")
+            .replace(/&lrm;/g, "\u200e").replace(/&rlm;/g, "\u200f").replace(/&amp;/g, "&");
+}
+
+// WebVTT text into the cues parseSrt makes: [{start, end, text}] in ms,
+// sorted. Not WebVTT (no "WEBVTT" first line): no cues. NOTE, STYLE and
+// REGION blocks have no timing line and are skipped with the header; cue
+// identifiers and cue settings (after the end time) are passed over.
+function parseVtt(text) {
+    var s = String(text).replace(/\r\n?/g, "\n");
+    if (!/^\uFEFF?WEBVTT(?:[ \t]|\n|$)/.test(s))
+        return [];
+    var cues = [];
+    var blocks = s.split(/\n[ \t]*\n/);
+    for (var i = 1; i < blocks.length; i++) {
+        var lines = blocks[i].replace(/^\n+/, "").split("\n");
+        var t = -1;
+        for (var j = 0; j < lines.length && j < 2; j++) {
+            if (lines[j].indexOf("-->") >= 0) {
+                t = j;
+                break;
+            }
+        }
+        if (t < 0)
+            continue;
+        var parts = lines[t].split("-->");
+        var start = parseVttTimestamp(parts[0]);
+        var end = parseVttTimestamp(parts[1]);
+        if (start < 0 || end < 0 || end <= start)
+            continue;
+        var body = vttCueText(lines.slice(t + 1).join("\n")).replace(/^\n+|\n+$/g, "");
+        if (body === "")
+            continue;
+        cues.push({ start: start, end: end, text: body });
+    }
+    cues.sort(function(a, b) { return a.start - b.start || a.end - b.end; });
+    return cues;
+}
+
+// SubRip or WebVTT, by the text itself.
+function parseSubtitles(text) {
+    return /^\uFEFF?WEBVTT(?:[ \t]|\r|\n|$)/.test(String(text)) ? parseVtt(text) : parseSrt(text);
+}
+
 // ---- display ----------------------------------------------------------------
 
 function escapeHtml(s) {

@@ -98,6 +98,10 @@ TestCase {
         verify(Playback.loadTimedOut(1000, 1000 + Playback.loadTimeoutMs, false));
         verify(!Playback.loadTimedOut(1000, 1000 + Playback.loadTimeoutMs * 2, true), "it started");
         verify(!Playback.loadTimedOut(0, 999999, false), "not asked to play");
+        verify(!Playback.loadTimedOut(1000, 1000 + Playback.streamLoadTimeoutMs - 1, false, Playback.streamLoadTimeoutMs),
+               "a stream gets longer");
+        verify(Playback.loadTimedOut(1000, 1000 + Playback.streamLoadTimeoutMs, false, Playback.streamLoadTimeoutMs));
+        verify(Playback.streamLoadTimeoutMs > Playback.loadTimeoutMs);
         compare(Playback.loadTimeoutMs, 15000);
     }
 

@@ -140,4 +140,15 @@ TestCase {
         compare(Library.cacheKey(a), Library.cacheKey({ path: "/a.mp4", size: 10, modified: 5400 }),
                 "within the same second");
     }
+
+    function test_stream_links() {
+        verify(Library.isStreamUrl("http://example.com/a.mp4"));
+        verify(Library.isStreamUrl("HTTPS://server:8096/Videos/1/master.m3u8?api_key=x"));
+        verify(!Library.isStreamUrl("file:///media/internal/a.mp4"));
+        verify(!Library.isStreamUrl("/media/internal/a.mp4"));
+        verify(!Library.isStreamUrl("ftp://example.com/a.mp4"));
+        verify(!Library.isStreamUrl("http://"));
+        verify(!Library.isStreamUrl("http://exa mple.com/a.mp4"));
+        verify(!Library.isStreamUrl(undefined));
+    }
 }

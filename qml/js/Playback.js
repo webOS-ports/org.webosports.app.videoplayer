@@ -122,9 +122,15 @@ function hasStarted(playing, framesShown, hasVideo, positionMs) {
     return hasVideo ? framesShown > 0 : positionMs > 0;
 }
 
-// Whether to give up: wanted to play since startedAt, still not started.
-function loadTimedOut(startedAt, now, started) {
-    return !started && startedAt > 0 && now - startedAt >= loadTimeoutMs;
+// A stream from a server may take longer: the playlist, then the first
+// pieces of it, come over the network first.
+var streamLoadTimeoutMs = 30000;
+
+// Whether to give up: wanted to play since startedAt, still not started,
+// after timeoutMs (loadTimeoutMs when not given).
+function loadTimedOut(startedAt, now, started, timeoutMs) {
+    var limit = timeoutMs > 0 ? timeoutMs : loadTimeoutMs;
+    return !started && startedAt > 0 && now - startedAt >= limit;
 }
 
 // ---- speed, picture ---------------------------------------------------------

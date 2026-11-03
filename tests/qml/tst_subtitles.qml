@@ -171,4 +171,44 @@ TestCase {
         compare(Subtitles.toStyledText("one\ntwo"), "one<br>two");
         compare(Subtitles.toStyledText(undefined), "");
     }
+
+    // ---- WebVTT ----
+
+    function test_vtt_cues() {
+        var cues = Subtitles.parseVtt("WEBVTT - a title\n\nNOTE a note\nover two lines\n\nSTYLE\n::cue { color: red }\n\n"
+                                      + "intro\n00:01.000 --> 00:02.500 align:start line:10%\n<v Bob>Hello <i>you</i></v>\n\n"
+                                      + "01:00:00.250 --> 01:00:01.000\n<c.yellow>Late</c> &amp; &lt;loud&gt;\nsecond line\n");
+        compare(cues.length, 2);
+        compare(cues[0].start, 1000);
+        compare(cues[0].end, 2500);
+        compare(cues[0].text, "Hello <i>you</i>");
+        compare(cues[1].start, 3600250);
+        compare(cues[1].end, 3601000);
+        compare(cues[1].text, "Late & <loud>\nsecond line");
+    }
+
+    function test_vtt_keeps_bold_italic_underline_without_classes() {
+        var cues = Subtitles.parseVtt("WEBVTT\n\n00:00.000 --> 00:01.000\n<b.loud>B</b> <u>U</u> <00:00.500>after <ruby>x<rt>y</rt></ruby>");
+        compare(cues[0].text, "<b>B</b> <u>U</u> after xy");
+    }
+
+    function test_vtt_crlf_and_bad_cues() {
+        var cues = Subtitles.parseVtt("WEBVTT\r\n\r\n00:05.000 --> 00:04.000\r\nbackwards\r\n\r\n"
+                                      + "nonsense --> 00:01.000\r\nbad\r\n\r\n00:01.000 --> 00:02.000\r\n\r\n"
+                                      + "00:03.000 --> 00:04.000\r\nkept\r\n");
+        compare(cues.length, 1);
+        compare(cues[0].text, "kept");
+    }
+
+    function test_vtt_needs_its_header() {
+        compare(Subtitles.parseVtt("1\n00:00:01,000 --> 00:00:02,000\nSubRip\n").length, 0);
+        compare(Subtitles.parseVtt("WEBVTTX\n\n00:01.000 --> 00:02.000\nno\n").length, 0);
+        compare(Subtitles.parseVtt("").length, 0);
+    }
+
+    function test_subtitles_by_their_text() {
+        compare(Subtitles.parseSubtitles("WEBVTT\n\n00:01.000 --> 00:02.000\nvtt\n")[0].text, "vtt");
+        compare(Subtitles.parseSubtitles("\uFEFFWEBVTT\n\n00:01.000 --> 00:02.000\nbom\n")[0].text, "bom");
+        compare(Subtitles.parseSubtitles("1\n00:00:01,000 --> 00:00:02,000\nsrt\n")[0].text, "srt");
+    }
 }

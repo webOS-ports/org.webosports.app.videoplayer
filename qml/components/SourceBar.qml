@@ -33,10 +33,15 @@ import LuneOS.Forms 1.0
  * server. The tabs share the width; past what fits they scroll sideways, as
  * the platform TabBar does.
  *
- * The bar is light, as the page under it, rather than the platform's dark
- * grey; the selected tab keeps the platform's blue. Captions are all one
- * size, on up to two lines: "Free TV – Netherlands" as "Free TV" over
- * "Netherlands".
+ * The bar is Messaging's tab strip (its palm-chrome.less, sampled from the
+ * Mojo app): light grey, dark captions, the selected tab in its blue.
+ * Captions are all one size, on up to two lines under an icon that stays
+ * in one place: "Free TV – Netherlands" as "Free TV" over "Netherlands".
+ *
+ * The library page and a server's page each have a bar. They share how far
+ * the row is scrolled (scrollX, scrolled()), so picking a tab far along does
+ * not show the next page's bar back at the start; the selected tab is kept
+ * in view.
  */
 TabBar {
     id: bar
@@ -46,6 +51,10 @@ TabBar {
     property var sources: []
     property string current: ""
     signal picked(string sourceId)
+    // How far the row is scrolled, shared between the pages' bars: from the
+    // row's start (originX), which a ListView moves as it makes its tabs.
+    property real scrollX: 0
+    signal scrolled(real x)
 
     readonly property var tabs: [{ sourceId: "", name: "This Device", icon: Qt.resolvedUrl("../images/device-dark.svg"),
                                    selectedIcon: Qt.resolvedUrl("../images/device.svg") }]
@@ -60,11 +69,18 @@ TabBar {
         return String(t.label || t.name || "").replace(" – ", "\n");
     }
 
+    // Messaging's colours (org.webosports.messaging, app/css/palm-chrome.less).
+    readonly property color stripTop: "#e3e3e3"
+    readonly property color stripBottom: "#dbdbdb"
+    readonly property color selectedTop: "#306ba3"
+    readonly property color selectedBottom: "#6ca6ce"
+    readonly property color captionColor: "#333333"
+
     background: Rectangle {
         objectName: "sourceBarBackground"
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Colors.ruleLight }
-            GradientStop { position: 1.0; color: Colors.pageBackground }
+            GradientStop { position: 0.0; color: bar.stripTop }
+            GradientStop { position: 1.0; color: bar.stripBottom }
         }
         Rectangle {
             anchors.left: parent.left
@@ -82,10 +98,26 @@ TabBar {
         for (var i = 0; i < tabs.length; ++i) {
             if (tabs[i].sourceId === current) {
                 currentIndex = i;
+                Qt.callLater(reveal);
                 return;
             }
         }
         currentIndex = 0;
+        Qt.callLater(reveal);
+    }
+    // Scrolled as the other bar was, and the selected tab in view.
+    function reveal() {
+        var v = contentItem;
+        if (!v || !visible || v.contentWidth <= 0)
+            return;
+        v.contentX = v.originX + Math.max(0, Math.min(scrollX, v.contentWidth - v.width));
+        v.positionViewAtIndex(currentIndex, ListView.Contain);
+        scrolled(v.contentX - v.originX);
+    }
+    onVisibleChanged: if (visible) Qt.callLater(reveal)
+    Connections {
+        target: bar.contentItem
+        function onMovementEnded() { bar.scrolled(bar.contentItem.contentX - bar.contentItem.originX); }
     }
     onCurrentChanged: follow()
     onTabsChanged: Qt.callLater(follow)
@@ -108,7 +140,14 @@ TabBar {
             // icons are plain pictures, so the icon and caption are drawn here,
             // and the tab is the bar's light grey unless it is selected.
             background: Rectangle {
-                color: tab.checked ? "#4585b8" : tab.down ? "#20000000" : "transparent"
+                objectName: "tabBackground"
+                color: tab.down && !tab.checked ? "#20000000" : "transparent"
+                gradient: tab.checked ? selectedGradient : null
+                Gradient {
+                    id: selectedGradient
+                    GradientStop { position: 0.0; color: bar.selectedTop }
+                    GradientStop { position: 1.0; color: bar.selectedBottom }
+                }
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -120,12 +159,16 @@ TabBar {
                     visible: !tab.checked
                 }
             }
+            // The icon at one height on every tab, the caption hanging under
+            // it, so a second line of caption does not push the icon up.
             contentItem: Item {
                 Column {
-                    anchors.centerIn: parent
+                    anchors.top: parent.top
+                    anchors.topMargin: Units.gu(0.4)
                     width: parent.width
                     spacing: Units.gu(0.3)
                     Image {
+                        objectName: "tabIcon"
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: Units.gu(2.6)
                         height: width
@@ -151,7 +194,7 @@ TabBar {
                         maximumLineCount: 2
                         elide: Text.ElideRight
                         lineHeight: 0.9
-                        color: tab.checked ? "#ffffff" : Colors.text
+                        color: tab.checked ? "#ffffff" : bar.captionColor
                         opacity: tab.down ? 0.7 : 1
                         font.pixelSize: FontUtils.sizeToPixels("x-small")
                         font.weight: tab.checked ? Font.Bold : Font.Normal

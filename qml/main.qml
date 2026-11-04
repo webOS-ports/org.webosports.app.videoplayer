@@ -81,6 +81,8 @@ WebOSWindow {
 
     // The library shown: "" for this device, else a server's sourceId.
     property string sourceId: ""
+    // How far the libraries' tab row is scrolled, for both pages' bars.
+    property real tabScrollX: 0
     // What plays from a server: {sourceId, item, session, siblings}, else
     // null.
     property var onlineNow: null

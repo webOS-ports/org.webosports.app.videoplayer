@@ -259,6 +259,8 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
             sources: appWindow.sources.list
+            scrollX: appWindow.tabScrollX
+            onScrolled: function(x) { appWindow.tabScrollX = x; }
             current: page.sourceId
             onPicked: function(id) { appWindow.showSource(id); }
         }

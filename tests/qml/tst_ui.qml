@@ -821,6 +821,9 @@ TestCase {
     // the file when it is, and the library gets its picture.
     function test_launch_before_the_scan_gets_a_picture() {
         startApp();
+        // The start's own scan done first: one still running would fill the
+        // list again behind the test's back (a busy machine, a slow screen).
+        tryVerify(function() { return app.scanner.generation > 0 && !app.scanner.running; }, 5000, "the first scan done");
         app.scanner.files = [];
         app.launchParams = JSON.stringify({ "target": root + "/clip.AVI" });
         tryVerify(function() { return app.player.started; }, 3000);
@@ -1106,9 +1109,16 @@ TestCase {
             compare(c.fontSizeMode, Text.FixedSize);
         });
         compare(tabs.background.objectName, "sourceBarBackground", "the bar's own light background");
-        compare(String(captions[2].color), "#2a2929", "an unselected caption dark on the light bar");
+        // Messaging's strip: dark captions, the selected tab its blue.
+        compare(String(captions[2].color), "#333333", "an unselected caption dark on the light bar");
         compare(String(captions[1].color), "#ffffff", "the selected one white on blue");
-        compare(String(findChild(tabs, "source:acc-jf").background.color), "#4585b8");
+        var lit = findChild(tabs, "source:acc-jf").background.gradient;
+        verify(lit !== null, "the selected tab's gradient");
+        compare(String(lit.stops[0].color), "#306ba3");
+        compare(String(lit.stops[1].color), "#6ca6ce");
+        verify(!findChild(tabs, "source:acc-up|uuid-1").background.gradient, "no gradient on the others");
+        compare(String(tabs.background.gradient.stops[0].color), "#e3e3e3");
+        compare(String(tabs.background.gradient.stops[1].color), "#dbdbdb");
         verify(String(findChild(tabs, "source:").contentItem.children[0].children[0].source).indexOf("device-dark.svg") > 0,
                "the device's icon dark when not selected");
         compare(app.library.visible, false);
@@ -1137,6 +1147,54 @@ TestCase {
         tryCompare(app, "sourceId", "");
         verify(app.library.visible);
         compare(quits, 0);
+    }
+
+    function test_tabs_keep_their_place_and_their_icons_in_line() {
+        startApp();
+        tryVerify(function() { return app.sources.generation > 0; }, 2000);
+        var many = [];
+        for (var i = 0; i < 12; i++)
+            many.push({ sourceId: "acc-m" + i, name: "M3U – List " + i, label: i === 3 ? "Free TV – Netherlands" : "List " + i,
+                        provider: "m3u", icon: "", features: { search: true, progress: false, continueWatching: false, live: true } });
+        app.sources.list = many;
+        var bar = findChild(app.library, "sourceBar");
+        tryVerify(function() { return findChild(bar, "source:acc-m11") !== null; }, 1000);
+        // Every icon at one height, the two-line caption under its own and
+        // inside its tab (after a frame: a Column places its children late).
+        wait(100);
+        var icons = ["source:", "source:acc-m0", "source:acc-m3"].map(function(n) {
+            var t = findChild(bar, n);
+            return { y: findChild(t, "tabIcon").mapToItem(t, 0, 0).y, tab: t };
+        });
+        compare(icons[2].y, icons[0].y, "the icon over a two-line caption not pushed up");
+        compare(icons[1].y, icons[0].y);
+        var two = findChild(icons[2].tab, "tabCaption");
+        compare(two.lineCount, 2);
+        verify(two.mapToItem(icons[2].tab, 0, 0).y + two.height <= icons[2].tab.height + 1, "the caption inside the tab");
+        // Scrolled along and a tab far along picked: the server's page shows
+        // the row where it was, with that tab in view.
+        var row = bar.contentItem;
+        verify(row.contentWidth > row.width, "more tabs than fit");
+        row.contentX = row.originX + row.contentWidth - row.width;
+        row.movementEnded();
+        var x = row.contentX - row.originX;
+        compare(app.tabScrollX, x);
+        // A tab in view but not at the row's end: the row stays put.
+        mouseClick(findChild(bar, "source:acc-m10"));
+        tryVerify(function() { return app.browse.visible; }, 1000);
+        var other = findChild(app.browse, "sourceBar");
+        tryVerify(function() { return Math.abs(other.contentItem.contentX - other.contentItem.originX - x) < 1; }, 1000,
+                  "the server's bar as the library's was");
+        var lit = findChild(other, "source:acc-m10");
+        verify(lit.checked);
+        var at = lit.mapToItem(other, 0, 0).x;
+        verify(at >= -1 && at + lit.width <= other.width + 1, "the picked tab in view: " + at);
+        // Back to this device from the start of the row: its tab comes into view.
+        other.contentItem.contentX = other.contentItem.originX + other.contentItem.contentWidth - other.contentItem.width;
+        keyClick(Qt.Key_Escape);
+        tryCompare(app, "sourceId", "");
+        tryVerify(function() { var t = findChild(bar, "source:"); var p = t.mapToItem(bar, 0, 0).x; return p >= -1 && p + t.width <= bar.width + 1; },
+                  1000, "this device's tab in view");
     }
 
     function test_the_servers_shown_at_once_from_the_last_time() {

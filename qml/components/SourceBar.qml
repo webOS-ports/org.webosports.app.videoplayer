@@ -107,9 +107,12 @@ TabBar {
                         text: tab.modelData.label || tab.modelData.name
                         color: "#ffffff"
                         opacity: tab.down ? 0.7 : 1
+                        // Server names and addresses as they are written, not
+                        // in capitals; a long one shrinks a little to fit
+                        // before it is cut short.
                         font.pixelSize: FontUtils.sizeToPixels("x-small")
-                        font.capitalization: Font.AllUppercase
-                        font.letterSpacing: 1
+                        fontSizeMode: Text.HorizontalFit
+                        minimumPixelSize: Math.round(FontUtils.sizeToPixels("x-small") * 0.75)
                         font.weight: tab.checked ? Font.Bold : Font.Normal
                     }
                 }

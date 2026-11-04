@@ -33,6 +33,8 @@ MUTATIONS = [
     ('server: repeats kept when paging', 'qml/js/Online.js', '        if (!seen[add[j].id]) {', '        if (true) {', 'online', None),
     ('server: parseKey splits at the last slash', 'qml/js/Online.js', 'var slash = rest.indexOf("/");', 'var slash = rest.lastIndexOf("/");', 'online', None),
     ('server: libraries left below the rows', 'qml/js/Online.js', 'return all.filter(function(s) { return s.layout === "grid"; })\n              .concat(all.filter(function(s) { return s.layout === "row"; }));', 'return all;', 'online', None),
+    ('tabs: the full name in the tab', 'qml/components/SourceBar.qml', 'text: tab.modelData.label || tab.modelData.name', 'text: tab.modelData.name', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
+    ('tabs: no name without a label', 'qml/components/SourceBar.qml', 'text: tab.modelData.label || tab.modelData.name', 'text: tab.modelData.label', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
     ('tabs: the lit tab does not follow the library', 'qml/components/SourceBar.qml', '    onCurrentChanged: follow()\n', '', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
     ('tabs: a tab given its height and shifted up', 'qml/components/SourceBar.qml', '            implicitHeight: bar.availableHeight\n', '            height: bar.height\n', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
     ('server: the list asked twice at the start', 'qml/VideoSources.qml', '        if (loading && Date.now() - _askedAt < 10000)\n            return;\n', '', 'ui::Ui::test_without_the_service_there_is_no_bar', None),

@@ -28,7 +28,8 @@ import LuneOS.Forms 1.0
 /*
  * The libraries to pick from, as tabs under the header the way the other
  * webOS apps switch views (Phone): this device first, then each video server
- * of the accounts, each an icon over its caption. Shown only when there is a
+ * of the accounts, each its account's icon over its short label; the page
+ * header carries the full name. Shown only when there is a
  * server. The tabs share the width; past what fits they scroll sideways, as
  * the platform TabBar does.
  */
@@ -36,7 +37,7 @@ TabBar {
     id: bar
     objectName: "sourceBar"
 
-    // [{sourceId, name, icon}]
+    // [{sourceId, name, label, icon}]
     property var sources: []
     property string current: ""
     signal picked(string sourceId)
@@ -97,10 +98,13 @@ TabBar {
                         }
                     }
                     Label {
+                        objectName: "tabCaption"
                         width: parent.width
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
-                        text: tab.modelData.name
+                        // The icon shows the kind of server; the label is the
+                        // name without it ("Home", not "Jellyfin – Home").
+                        text: tab.modelData.label || tab.modelData.name
                         color: "#ffffff"
                         opacity: tab.down ? 0.7 : 1
                         font.pixelSize: FontUtils.sizeToPixels("x-small")

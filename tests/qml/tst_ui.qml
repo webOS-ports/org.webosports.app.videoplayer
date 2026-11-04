@@ -89,7 +89,7 @@ TestCase {
     function videoAnswer(method, a) {
         if (method === "listSources")
             return { sources: [
-                { sourceId: "acc-jf", name: "Home Jellyfin", provider: "jellyfin", icon: "",
+                { sourceId: "acc-jf", name: "Jellyfin – Home", label: "Home", provider: "jellyfin", icon: "",
                   features: { search: true, progress: true, continueWatching: true, live: false } },
                 { sourceId: "acc-up|uuid-1", name: "NAS", provider: "upnp", icon: "",
                   features: { search: false, progress: false, continueWatching: false, live: false } }] };
@@ -1084,7 +1084,10 @@ TestCase {
     function test_servers_are_libraries_beside_the_device() {
         startApp();
         openServer("acc-jf");
-        compare(findChild(app.browse, "browseHeader").title, "Home Jellyfin");
+        compare(findChild(app.browse, "browseHeader").title, "Jellyfin – Home", "the full name in the header");
+        var tabs = findChild(app.browse, "sourceBar");
+        compare(findChild(findChild(tabs, "source:acc-jf"), "tabCaption").text, "Home", "the tab shows the label");
+        compare(findChild(findChild(tabs, "source:acc-up|uuid-1"), "tabCaption").text, "NAS", "or the name, without a label");
         compare(app.library.visible, false);
         // Rows show their videos; an empty row is not shown; libraries open.
         tryVerify(function() { return browseChild("tile:m3") !== null; }, 2000, "Continue Watching's films");

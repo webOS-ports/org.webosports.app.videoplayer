@@ -104,8 +104,37 @@ or a `file://` URL. More parameters, for scripts and tests: `position`
 `pause`, `play`, `close`) and `snapshot` (a PNG of the app's window, drawn
 by the app, with `snapshotDelay`).
 
+**Streams from servers**
+
+- A link (http or https) as the launch target plays that stream: MP4 or
+  WebM over HTTP, HLS (`.m3u8`) and DASH (`.mpd`) through GStreamer's
+  adaptive demuxers. The video services in Synergy (Jellyfin, PeerTube,
+  UPnP/DLNA) open their videos this way, with more about each:
+
+      {"stream": {"url": "https://server/Videos/1/master.m3u8?api_key=...",
+                  "title": "Episode One", "key": "videos:<account>:<item>",
+                  "startMs": 4000,
+                  "subtitles": [{"url": "https://server/.../en.vtt",
+                                 "label": "English", "lang": "en",
+                                 "format": "vtt", "default": true}]}}
+
+  `key` is what the stream is remembered by (where it was left, the
+  subtitles and sound chosen); without it, the link. `startMs` is where
+  the server says it was left; where this device left it wins.
+- Subtitles a server lists for the stream, SubRip or WebVTT: in the
+  subtitle picker by the names the server gave them, off unless the
+  server marks one as the default.
+- A stream has 30 seconds to start rather than 15, for the playlist and
+  its first pieces to arrive.
+- Where it got to is reported now and then while playing, on a pause, at
+  the end and on closing (`PlayerView.positionReported`), for the servers
+  that keep it.
+
 ## Depends on
 
+- For streams: GStreamer's `souphttpsrc` (gstreamer1.0-plugins-good-soup,
+  with glib-networking for TLS) and `hlsdemux2`/`dashdemux2`
+  (gstreamer1.0-plugins-good-adaptivedemux2).
 - [luneos-components](https://github.com/webOS-ports/luneos-components):
   `LuneOS.Components`, `LuneOS.Forms`, `LuneOS.System` (a version with
   `KeepScreenOn` and `WindowFullScreen`, which hold the screen on while a
@@ -149,7 +178,8 @@ stand-ins:
 
 - `tst_subtitles`, `tst_format`, `tst_library`, `tst_playback`: the logic
   in `qml/js/` - decoding (UTF-8, byte order marks, UTF-16, the
-  Windows-1252 fallback, invalid UTF-8 forms), SubRip parsing and timing,
+  Windows-1252 fallback, invalid UTF-8 forms), SubRip and WebVTT parsing
+  and timing, stream links,
   ASS event lines cleaned, what markup reaches the screen; times, lengths,
   sizes, dates; what is a video, which folders, launch targets, subtitle
   files by name, natural order, search; resuming, the remembered state,
@@ -169,14 +199,18 @@ stand-ins:
   speed, audio tracks, both kinds of subtitles and their size, fit and
   fill, fullscreen, the screen lock, turning, resuming, a video that
   never starts, a broken one, the back gesture, launch parameters (also before the scan is done),
-  interruptions, the end of a video, the library's pictures, reading
+  interruptions, the end of a video, streams (a link, a stream with its
+  subtitles and the server's position, a slow start, a link that is not
+  one), the library's pictures, reading
   lengths switched off after a crash, a headset's keys through the media
   session, and the bars fitting each screen. Screenshots of each
   state go to `build/test-output/ui/`.
 
 `tests/mutation-check.py` breaks the app in one way at a time and checks
-that a test fails: 46 ways. The other 34 were all caught on 2026-10-29,
-the 12 for the media session on 2026-10-30.
+that a test fails: 56 ways. The other 34 were all caught on 2026-10-29,
+the 12 for the media session on 2026-10-30, the 10 for streams on
+2026-11-03. `MUTATIONS_MATCHING=<words>` runs only those whose description
+has those words.
 
 There is no C++ in the app, so no compiler, sanitizer or C/C++ static
 analysis applies; `qmllint` reports only what the desktop stand-ins cannot

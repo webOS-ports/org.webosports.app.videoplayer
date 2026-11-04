@@ -121,6 +121,7 @@ TestCase {
 
     function cleanup() {
         Playback.loadTimeoutMs = 15000;
+        Playback.streamLoadTimeoutMs = 30000;
         if (app) {
             app.destroy();
             app = null;
@@ -730,9 +731,104 @@ TestCase {
         app.launchParams = JSON.stringify({ "target": root + "/clip.AVI" });
         tryCompare(app.player, "path", root + "/clip.AVI");
         tryVerify(function() { return app.player.started; }, 3000);
-        // Not a local file.
-        app.launchParams = JSON.stringify({ "target": "http://example.com/a.mp4" });
+        // Neither a local file nor a stream.
+        app.launchParams = JSON.stringify({ "target": "ftp://example.com/a.mp4" });
         verify(app.notice.indexOf("Only videos on this device") === 0, app.notice);
+    }
+
+    // ---- streams ----
+
+    readonly property string streamsDir: decodeURIComponent(Qt.resolvedUrl("../data/streams").toString())
+
+    function test_a_link_as_target_plays_the_stream() {
+        startApp();
+        app.launchParams = JSON.stringify({ "target": "https://example.com/films/Night%20Train.mp4" });
+        tryVerify(function() { return app.player.started; }, 3000);
+        verify(app.player.streaming);
+        compare(app.player.engine.source.toString(), Qt.url("https://example.com/films/Night%20Train.mp4").toString());
+        compare(app.player.path, "https://example.com/films/Night%20Train.mp4", "remembered by its link");
+        compare(app.player.subtitleChoice, "off");
+        compare(app.notice, "");
+        app.player.engine.seek(9000);
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(app.resume.entry("https://example.com/films/Night%20Train.mp4").position, 9000);
+    }
+
+    function test_a_stream_with_its_subtitles_and_server_position() {
+        startApp();
+        var reports = [];
+        app.player.positionReported.connect(function(path, ms, duration, state) {
+            reports.push({ path: path, ms: ms, state: state });
+        });
+        app.launchParams = JSON.stringify({ "stream": {
+            "url": "https://jellyfin.example/Videos/ep1/master.m3u8?api_key=k",
+            "title": "Episode One",
+            "key": "videos:acc1:ep1",
+            "startMs": 4000,
+            "subtitles": [
+                { "url": streamsDir + "/missing.vtt", "label": "Dutch", "lang": "nl", "format": "vtt" },
+                { "url": streamsDir + "/ep1.vtt", "label": "English", "lang": "en", "format": "vtt", "default": true }
+            ]
+        } });
+        tryVerify(function() { return app.player.started; }, 3000);
+        compare(app.player.title, "Episode One");
+        compare(app.player.path, "videos:acc1:ep1");
+        compare(app.player.resumedFrom, 4000, "where the server says it was left");
+        compare(app.player.srtFiles.length, 2);
+        compare(app.player.subtitleChoice, "srt:" + streamsDir + "/ep1.vtt", "the server's default is on");
+        tryVerify(function() { return app.player.srtCues.length === 2; }, 2000, "the WebVTT read");
+        var e = app.player.engine;
+        var text = playerChild("subtitleText");
+        e.seek(5500);
+        tryCompare(text, "text", "Two &amp; more");
+        e.seek(1500);
+        tryCompare(text, "text", "Stream <i>one</i>");
+        shot("stream-subtitles");
+
+        clickButton("subtitleButton");
+        choose("Dutch");
+        compare(app.player.subtitleChoice, "srt:" + streamsDir + "/missing.vtt");
+        clickButton("subtitleButton");
+        choose("Off");
+        tryCompare(text, "text", "");
+
+        e.seek(12000);
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        var last = reports[reports.length - 1];
+        compare(last.state, "stopped");
+        compare(last.path, "videos:acc1:ep1");
+        compare(last.ms, 12000);
+        compare(app.resume.entry("videos:acc1:ep1").position, 12000, "kept on the device too");
+
+        // Opened again: the device's own position wins over the server's.
+        app.launchParams = JSON.stringify({ "stream": { "url": "https://jellyfin.example/Videos/ep1/master.m3u8",
+                                                          "key": "videos:acc1:ep1", "startMs": 4000 } });
+        tryVerify(function() { return app.player.started; }, 3000);
+        compare(app.player.resumedFrom, 12000);
+    }
+
+    function test_a_slow_stream_gets_longer_to_start() {
+        startApp();
+        Playback.loadTimeoutMs = 300;
+        Playback.streamLoadTimeoutMs = 900;
+        app.playStream({ url: "https://example.com/hang.m3u8", title: "Slow" });
+        wait(600);
+        compare(app.player.errorText, "", "not given up at a file's limit");
+        tryVerify(function() { return app.player.errorText !== ""; }, 3000);
+        verify(app.player.errorText.indexOf("The server may be slow") > 0, app.player.errorText);
+    }
+
+    function test_not_a_stream_link() {
+        startApp();
+        app.playStream({ url: "file:///etc/passwd" });
+        verify(!app.player.isOpen);
+        verify(app.notice.indexOf("This is not a link to a video") === 0, app.notice);
+        app.notice = "";
+        app.launchParams = JSON.stringify({ "stream": { "title": "no url" } });
+        verify(!app.player.isOpen);
+        verify(app.notice.indexOf("This is not a link to a video") === 0, app.notice);
     }
 
     function test_interruptions_pause() {

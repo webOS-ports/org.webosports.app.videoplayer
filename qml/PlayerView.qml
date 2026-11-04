@@ -63,7 +63,21 @@ FocusScope {
         if (fileInfo && started && cache && engine && engine.duration > 0)
             cache.update(Library.cacheKey(fileInfo), { duration: engine.duration });
     }
-    readonly property string title: LC.FileLists.displayName(path)
+    readonly property string title: stream && typeof stream.title === "string" && stream.title !== ""
+                                    ? stream.title : LC.FileLists.displayName(path)
+
+    /*
+     * A stream from a server instead of a file (null for a file):
+     * {url, title, subtitles: [{url, label, lang, format, default}],
+     * startMs}. path is then the key it is remembered by.
+     */
+    property var stream: null
+    readonly property bool streaming: stream !== null
+
+    // Where it got to, for the server that keeps it: now and then while
+    // playing (state "playing"), on a pause ("paused"), at the end ("ended")
+    // and on closing ("stopped").
+    signal positionReported(string path, int positionMs, int durationMs, string state)
 
     // Log what happens as "VIDEOPLAYER {json}" lines, for tools/test-device.sh.
     property bool report: false
@@ -141,6 +155,7 @@ FocusScope {
         sheet.hide();
         savedEntry = resume ? resume.entry(newPath) : null;
         pendingOptions = options;
+        stream = options.stream && typeof options.stream.url === "string" ? options.stream : null;
         subtitleChoice = "off";
 
         var e = engineHost.engine;
@@ -148,10 +163,18 @@ FocusScope {
         e.activeSubtitleTrack = -1;
         e.activeAudioTrack = 0;
         e.countFrames = report;
-        e.source = LC.FileLists.fileUrl(newPath);
+        e.source = stream ? stream.url : LC.FileLists.fileUrl(newPath);
         play();
         showControls();
-        srtFolder.folder = LC.FileLists.fileUrl(newPath.substring(0, newPath.lastIndexOf("/")) || "/");
+        if (stream) {
+            // Its subtitles come with it, as links.
+            srtFiles = (stream.subtitles || []).filter(function(s) {
+                return s && typeof s.url === "string" && /^(https?|file):/i.test(s.url);
+            }).map(function(s) { return s.url; });
+            srtListed = true;
+        } else {
+            srtFolder.folder = LC.FileLists.fileUrl(newPath.substring(0, newPath.lastIndexOf("/")) || "/");
+        }
         log("open", {});
         view.forceActiveFocus();
     }
@@ -161,14 +184,21 @@ FocusScope {
         if (!isOpen)
             return;
         saveState();
+        var at = engine ? (engine.ended ? 0 : engine.position) : 0;
+        var length = engine ? engine.duration : 0;
         log("close", { position: engine ? engine.position : 0 });
+        // Not wanted any more before it stops, so stopping is not taken
+        // for a pause from outside.
+        wantPlay = false;
         if (engine)
             engine.stop();
-        wantPlay = false;
+        if (started && engine)
+            positionReported(path, at, length, "stopped");
         locked = false;
         unlockAsked = false;
         path = "";
         fileInfo = null;
+        stream = null;
         closed();
     }
 
@@ -346,15 +376,21 @@ FocusScope {
                 view.fail(e.errorText);
             } else if (Playback.hasStarted(e.playing, e.framesShown, e.hasVideo, e.position)) {
                 view.onStartedPlaying();
-            } else if (view.wantPlay && Playback.loadTimedOut(view.loadStartedAt, Date.now(), false)) {
+            } else if (view.wantPlay && Playback.loadTimedOut(view.loadStartedAt, Date.now(), false, view.loadLimit())) {
                 view.log("timeout", { ms: Date.now() - view.loadStartedAt });
                 view.fail("“" + view.title + "” did not start playing within "
-                          + Math.round(Playback.loadTimeoutMs / 1000) + " seconds. This device may not be able "
-                          + "to play this kind of video.");
+                          + Math.round(view.loadLimit() / 1000) + " seconds. "
+                          + (view.streaming ? "The server may be slow, or this device may not be able to play it."
+                                            : "This device may not be able to play this kind of video."));
                 // Its pipeline may be stuck for good: never touched again.
                 engineHost.setAside();
             }
         }
+    }
+
+    // How long it may take to start: longer for a stream.
+    function loadLimit() {
+        return streaming ? Playback.streamLoadTimeoutMs : Playback.loadTimeoutMs;
     }
 
     function fail(text) {
@@ -400,7 +436,8 @@ FocusScope {
         var e = engine;
         var opts = pendingOptions || {};
         var at = opts.position !== undefined ? opts.position
-                                             : (savedEntry && savedEntry.position > 0 ? savedEntry.position : 0);
+                                             : (savedEntry && savedEntry.position > 0 ? savedEntry.position
+                                                : (stream && stream.startMs > 0 ? stream.startMs : 0));
         if (at > 0 && (e.duration <= 0 || at < e.duration - 1000)) {
             e.seek(at);
             resumedFrom = at;
@@ -434,6 +471,8 @@ FocusScope {
             audioTrack: engine.activeAudioTrack,
             subtitle: subtitleChoice
         });
+        positionReported(path, engine.ended ? 0 : engine.position, engine.duration,
+                         engine.ended ? "ended" : (engine.playing ? "playing" : "paused"));
     }
 
     // Now and then while playing, so a crash or a kill loses little.
@@ -510,6 +549,12 @@ FocusScope {
         var want = opts.subtitle !== undefined ? opts.subtitle : (savedEntry && savedEntry.subtitle ? savedEntry.subtitle : "");
         if (want === "srt")
             want = srtFiles.length > 0 ? "srt:" + srtFiles[0] : "off";
+        if (want === "" && stream) {
+            // A server lists every language it has: only the one it marks
+            // as the default is on by itself.
+            var marked = (stream.subtitles || []).filter(function(s) { return s && s.default === true; });
+            want = marked.length > 0 && srtFiles.indexOf(marked[0].url) >= 0 ? "srt:" + marked[0].url : "off";
+        }
         if (want === "" )
             want = srtFiles.length > 0 ? "srt:" + srtFiles[0] : "off";
         if (want.indexOf("srt:") === 0 && srtFiles.indexOf(want.substr(4)) < 0)
@@ -539,7 +584,7 @@ FocusScope {
     // later), and decoded by Subtitles.js.
     function loadSrt(srtPath) {
         var xhr = new XMLHttpRequest();
-        xhr.open("GET", LC.FileLists.fileUrl(srtPath));
+        xhr.open("GET", /^[a-z][a-z0-9+.-]*:/i.test(srtPath) ? srtPath : LC.FileLists.fileUrl(srtPath));
         xhr.responseType = "arraybuffer";
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== XMLHttpRequest.DONE)
@@ -552,7 +597,7 @@ FocusScope {
                 return;
             }
             var decoded = Subtitles.decode(bytes);
-            view.srtCues = Subtitles.parseSrt(decoded.text);
+            view.srtCues = Subtitles.parseSubtitles(decoded.text);
             view.srtEncoding = decoded.encoding;
             view.log("srt", { path: srtPath, encoding: decoded.encoding, cues: view.srtCues.length });
         };
@@ -591,6 +636,11 @@ FocusScope {
     function openSubtitlePicker() {
         var choices = [{ label: "Off", checked: subtitleChoice === "off", key: "subtitle", value: "off" }];
         for (var i = 0; i < srtFiles.length; i++) {
+            if (stream) {
+                choices.push({ label: streamSubtitleLabel(srtFiles[i], i),
+                               checked: subtitleChoice === "srt:" + srtFiles[i], key: "subtitle", value: "srt:" + srtFiles[i] });
+                continue;
+            }
             var lang = Library.subtitleLabel(path, srtFiles[i]);
             choices.push({ label: "From file" + (lang ? " (" + lang + ")" : ""),
                            checked: subtitleChoice === "srt:" + srtFiles[i], key: "subtitle", value: "srt:" + srtFiles[i] });
@@ -604,6 +654,16 @@ FocusScope {
         });
         sheet.show("Subtitles", choices);
         showControls();
+    }
+
+    // A stream's subtitles by the name the server gave them.
+    function streamSubtitleLabel(url, index) {
+        var list = stream ? (stream.subtitles || []) : [];
+        for (var i = 0; i < list.length; i++) {
+            if (list[i] && list[i].url === url)
+                return list[i].label || list[i].lang || ("Subtitles " + (index + 1));
+        }
+        return "Subtitles " + (index + 1);
     }
 
     function openSpeedPicker() {

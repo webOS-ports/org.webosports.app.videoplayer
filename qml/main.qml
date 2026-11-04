@@ -34,7 +34,9 @@ import "js/MediaSession.js" as Session
  * Videos: the videos on the device, and a player for them.
  *
  * Opened with {"target": "<path or file: URL>"} - by Files, Email, the
- * browser's downloads (appinfo.json's mimeTypes) - it plays that video.
+ * browser's downloads (appinfo.json's mimeTypes) - it plays that video;
+ * with an http(s) link as the target, or {"stream": {...}} (playStream),
+ * it plays that stream.
  * The back gesture (an Escape key) closes the player, then the app.
  */
 WebOSWindow {
@@ -173,8 +175,13 @@ WebOSWindow {
         return null;
     }
 
-    // Plays a file: from the library, or a launch target.
+    // Plays a file: from the library, or a launch target. A link to a
+    // stream on a server (http, https) is played as a stream.
     function playFile(target, options) {
+        if (Library.isStreamUrl(target)) {
+            playStream({ url: target }, options);
+            return;
+        }
         var path = LC.FileLists.localPath(target);
         if (path === "") {
             notice = "Only videos on this device can be played: " + target;
@@ -182,6 +189,26 @@ WebOSWindow {
         }
         playerView.open(path, options);
         playerView.fileInfo = fileInfoFor(path);
+    }
+
+    /*
+     * Plays a stream: {url (http or https), title, subtitles: [{url, label,
+     * lang, format, default}], startMs, key}. key is what it is remembered
+     * by (where it was left, the subtitles chosen); without one, the url.
+     */
+    function playStream(stream, options) {
+        if (!stream || !Library.isStreamUrl(stream.url)) {
+            notice = "This is not a link to a video: " + (stream && stream.url !== undefined ? stream.url : "");
+            return;
+        }
+        options = options || {};
+        var key = typeof stream.key === "string" && stream.key !== "" ? stream.key : stream.url;
+        var opts = {};
+        for (var k in options)
+            opts[k] = options[k];
+        opts.stream = stream;
+        playerView.open(key, opts);
+        playerView.fileInfo = null;
     }
 
     LunaService {
@@ -286,15 +313,17 @@ WebOSWindow {
                     appWindow.snapshot(params.snapshot);
                 }
             }
-            if (typeof params.target === "string" && params.target !== "") {
-                appWindow.playFile(params.target, {
-                    position: typeof params.position === "number" ? params.position : undefined,
-                    subtitle: typeof params.subtitle === "string" ? params.subtitle : undefined,
-                    audioTrack: typeof params.audioTrack === "number" ? params.audioTrack : undefined,
-                    rate: typeof params.rate === "number" ? params.rate : undefined,
-                    report: params.report === true
-                });
-            }
+            var options = {
+                position: typeof params.position === "number" ? params.position : undefined,
+                subtitle: typeof params.subtitle === "string" ? params.subtitle : undefined,
+                audioTrack: typeof params.audioTrack === "number" ? params.audioTrack : undefined,
+                rate: typeof params.rate === "number" ? params.rate : undefined,
+                report: params.report === true
+            };
+            if (params.stream && typeof params.stream === "object")
+                appWindow.playStream(params.stream, options);
+            else if (typeof params.target === "string" && params.target !== "")
+                appWindow.playFile(params.target, options);
         }
         onAppMenuRequested: appWindow.openAppMenu()
     }

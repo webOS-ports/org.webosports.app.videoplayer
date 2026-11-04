@@ -147,6 +147,11 @@ TestCase {
         verify(!Library.isStreamUrl("file:///media/internal/a.mp4"));
         verify(!Library.isStreamUrl("/media/internal/a.mp4"));
         verify(!Library.isStreamUrl("ftp://example.com/a.mp4"));
+        // RTSP cameras and servers: GStreamer's rtspsrc plays them.
+        verify(Library.isStreamUrl("rtsp://camera.local:554/stream1"));
+        verify(Library.isStreamUrl("rtspt://camera.local/live"));
+        verify(!Library.isStreamUrl("rtmp://example.com/live"));
+        verify(!Library.isStreamUrl("rtsp://"));
         verify(!Library.isStreamUrl("http://"));
         verify(!Library.isStreamUrl("http://exa mple.com/a.mp4"));
         verify(!Library.isStreamUrl(undefined));

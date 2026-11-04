@@ -61,7 +61,15 @@ TabBar {
                                 .concat(sources)
     readonly property real tabWidth: Math.max(width / Math.max(1, tabs.length), Units.gu(11))
 
-    implicitHeight: Units.gu(7)
+    // Tall enough for the icon and two lines of caption, from the caption
+    // font's own line height (the tab's padding is the platform's 6 px).
+    FontMetrics {
+        id: captionMetrics
+        font.pixelSize: FontUtils.sizeToPixels("x-small")
+    }
+    readonly property real tabPadding: 6
+    implicitHeight: Math.ceil(2 * tabPadding + Units.gu(0.4) + Units.gu(2.6) + Units.gu(0.3)
+                              + 2 * captionMetrics.height + Units.gu(0.4))
     visible: sources.length > 0
 
     // A label's "Kind – name" (a Free TV list) breaks at the dash.

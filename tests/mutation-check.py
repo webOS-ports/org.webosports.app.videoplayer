@@ -57,6 +57,7 @@ MUTATIONS = [
     ('tabs: scroll not shared', 'qml/components/SourceBar.qml', '        function onMovementEnded() { bar.scrolled(bar.contentItem.contentX - bar.contentItem.originX); }', '        function onMovementEnded() {}', 'ui::Ui::test_tabs_keep_their_place_and_their_icons_in_line', None),
     ('tabs: the platform blue', 'qml/components/SourceBar.qml', 'readonly property color selectedTop: "#306ba3"', 'readonly property color selectedTop: "#4585b8"', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
     ('tabs: caption not Messaging grey', 'qml/components/SourceBar.qml', 'readonly property color captionColor: "#333333"', 'readonly property color captionColor: "#2a2929"', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
+    ('tabs: bar height for one line of caption', 'qml/components/SourceBar.qml', '+ 2 * captionMetrics.height', '+ captionMetrics.height', 'ui::Ui::test_tabs_keep_their_place_and_their_icons_in_line', None),
     ('server: progress without the session', 'qml/js/Online.js', '        args.session = session;', '', 'online', None),
     ('server: neighbour does not skip folders', 'qml/js/Online.js', '                if (items[j].playable)\n                    return items[j];', '                return items[j];', 'online', None),
     ('server: watched shows no full bar', 'qml/js/Online.js', '    if (p.watched)\n        return 1;', '', 'online', None),

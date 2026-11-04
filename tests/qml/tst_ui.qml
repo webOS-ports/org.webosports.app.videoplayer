@@ -1167,6 +1167,61 @@ TestCase {
         tryCompare(app, "sourceId", "");
     }
 
+    function test_a_live_channel_has_nothing_to_seek_keep_or_report() {
+        startApp();
+        var channel = { id: "ch1", kind: "live", title: "Channel One", playable: true, hasChildren: false, artwork: {} };
+        // A place kept from before (a list that once had it as a film) is not used.
+        app.resume.remember("videos:acc-jf/ch1", { position: 10000, duration: 30000, audioTrack: 0, subtitle: "off" });
+        app.playOnline("acc-jf", channel, []);
+        tryVerify(function() { return app.player.started; }, 3000, "it plays");
+        compare(app.player.resumedFrom, 0, "not resumed");
+        verify(app.player.live);
+        compare(app.player.path, "videos:acc-jf/ch1");
+        verify(app.player.engine.seekable, "the engine could seek; the player does not");
+        app.player.showControls();
+        tryVerify(function() { return playerChild("seekRow").visible; }, 1000, "the bar is shown");
+        verify(!playerChild("seekBar").visible, "no seek bar");
+        verify(!playerChild("remainingLabel").visible, "no time left");
+        verify(playerChild("elapsedLabel").text.indexOf("LIVE") >= 0, playerChild("elapsedLabel").text);
+        verify(!playerChild("backButton").enabled && !playerChild("forwardButton").enabled, "no jumps");
+        verify(!playerChild("speedButton").enabled, "no speeds");
+        compare(app.session.durationMs, 0, "no length for the headset either");
+        wait(300);
+        var at = app.player.engine.position;
+        app.player.jump(10000);
+        app.player.command({ seek: 60000 });
+        verify(app.player.engine.position < at + 1000, "neither jump nor seek moved it: " + at + " -> " + app.player.engine.position);
+        app.player.pause();
+        app.player.saveState();
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(videoCallsOf("reportProgress").length, 0, "a channel has no progress for the server");
+        compare(app.resume.entry("videos:acc-jf/ch1").position, 10000, "nor kept on the device");
+        verify(app.onlineNow === null, "done with it");
+
+        // A film after it reports as before.
+        app.playOnline("acc-jf", { id: "m1", kind: "movie", title: "Movie 01", playable: true }, []);
+        tryVerify(function() { return app.player.path === "videos:acc-jf/m1" && app.player.started; }, 3000);
+        verify(!app.player.live);
+        app.player.showControls();
+        tryVerify(function() { return playerChild("seekBar").visible; }, 1000, "the film's seek bar");
+        verify(playerChild("remainingLabel").visible);
+        verify(playerChild("forwardButton").enabled);
+        app.player.pause();
+        tryVerify(function() { return videoCallsOf("reportProgress").length > 0; }, 2000, "the film's pause reported");
+
+        // From the film to the channel and on to another film: the film left
+        // is reported stopped, the channel left is not reported.
+        app.playOnline("acc-jf", channel, []);
+        tryVerify(function() { return app.player.path === "videos:acc-jf/ch1" && app.player.started; }, 3000);
+        verify(app.player.live);
+        app.playOnline("acc-jf", { id: "m2", kind: "movie", title: "Movie 02", playable: true }, []);
+        tryVerify(function() { return app.player.path === "videos:acc-jf/m2" && app.player.started; }, 3000);
+        var items = videoCallsOf("reportProgress").map(function(c) { return c.args.itemId + ":" + c.args.state; });
+        verify(items.indexOf("m1:stopped") >= 0, items);
+        verify(items.every(function(i) { return i.indexOf("ch1:") !== 0; }), items);
+    }
+
     function test_the_end_counts_as_watched() {
         startApp();
         openServer("acc-jf");

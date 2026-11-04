@@ -26,6 +26,18 @@ MUTATIONS = [
     # coming to the front; a test window comes to the front at once, so
     # dropping either alone is not seen, and is not listed.)
     ('server: ended reported at 0', 'qml/js/Online.js', 'var at = state === "ended" && durationMs > 0 ? durationMs : Math.max(0, Math.round(positionMs));', 'var at = Math.max(0, Math.round(positionMs));', 'online', None),
+    ('live: a channel resumes like a film', 'qml/js/Online.js', '    if (item && item.kind === "live")\n        return', '    if (false)\n        return', 'online', None),
+    ('live: the seek bar shown', 'qml/PlayerView.qml', '                    visible: !view.live\n                    enabled: view.canSeek', '                    enabled: view.canSeek', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: the time left shown', 'qml/PlayerView.qml', '                    objectName: "remainingLabel"\n                    visible: !view.live\n', '                    objectName: "remainingLabel"\n', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: no LIVE label', 'qml/PlayerView.qml', 'text: view.live ? "\\u25CF LIVE"', 'text: false ? ""', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: jumps and seeks allowed', 'qml/PlayerView.qml', 'engine.seekable && started && !live', 'engine.seekable && started', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: a launch seek allowed', 'qml/PlayerView.qml', 'if (typeof c.seek === "number" && engine && !live)', 'if (typeof c.seek === "number" && engine)', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: speeds allowed', 'qml/PlayerView.qml', '                    enabled: !view.live\n', '', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: remembered on the device', 'qml/PlayerView.qml', 'if (!isOpen || !started || !resume || !engine || live)', 'if (!isOpen || !started || !resume || !engine)', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: reported to the server', 'qml/main.qml', '            if (now.item.kind !== "live")\n                videoSources.report', '            if (true)\n                videoSources.report', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: reported when left for another', 'qml/main.qml', 'if (prev && prev.item.kind !== "live" && playerView.isOpen', 'if (prev && playerView.isOpen', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: a length for the headset', 'qml/main.qml', 'playerView.engine !== null && !playerView.live ? playerView.engine.duration : 0', 'playerView.engine !== null ? playerView.engine.duration : 0', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('live: started at a remembered place', 'qml/PlayerView.qml', 'var at = live ? 0 : opts.position', 'var at = opts.position', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
     ('server: progress without the session', 'qml/js/Online.js', '        args.session = session;', '', 'online', None),
     ('server: neighbour does not skip folders', 'qml/js/Online.js', '                if (items[j].playable)\n                    return items[j];', '                return items[j];', 'online', None),
     ('server: watched shows no full bar', 'qml/js/Online.js', '    if (p.watched)\n        return 1;', '', 'online', None),

@@ -73,6 +73,10 @@ FocusScope {
      */
     property var stream: null
     readonly property bool streaming: stream !== null
+    // A live channel ({live: true} on the stream): no seek bar, no jumps or
+    // speeds, and nothing remembered or reported - it has no place to keep.
+    readonly property bool live: stream !== null && stream.live === true
+    readonly property bool canSeek: engine !== null && engine.seekable && started && !live
 
     // Where it got to, for the server that keeps it: now and then while
     // playing (state "playing"), on a pause ("paused"), at the end ("ended")
@@ -224,7 +228,7 @@ FocusScope {
         if (!isOpen || !c)
             return;
         log("command", { command: c });
-        if (typeof c.seek === "number" && engine)
+        if (typeof c.seek === "number" && engine && !live)
             engine.seek(c.seek);
         if (typeof c.rate === "number" && c.rate > 0 && engine)
             engine.rate = c.rate;
@@ -288,7 +292,7 @@ FocusScope {
     }
 
     function jump(deltaMs) {
-        if (!engine || !engine.seekable)
+        if (!canSeek)
             return;
         engine.seek(Playback.jumpTarget(engine.position, deltaMs, engine.duration));
         showControls();
@@ -435,7 +439,7 @@ FocusScope {
         started = true;
         var e = engine;
         var opts = pendingOptions || {};
-        var at = opts.position !== undefined ? opts.position
+        var at = live ? 0 : opts.position !== undefined ? opts.position
                                              : (savedEntry && savedEntry.position > 0 ? savedEntry.position
                                                 : (stream && stream.startMs > 0 ? stream.startMs : 0));
         if (at > 0 && (e.duration <= 0 || at < e.duration - 1000)) {
@@ -463,7 +467,7 @@ FocusScope {
     // ---- remembering --------------------------------------------------------
 
     function saveState() {
-        if (!isOpen || !started || !resume || !engine)
+        if (!isOpen || !started || !resume || !engine || live)
             return;
         resume.remember(path, {
             position: engine.ended ? 0 : engine.position,
@@ -941,6 +945,7 @@ FocusScope {
 
             Item {
                 id: seekRow
+                objectName: "seekRow"
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: buttonRow.top
@@ -954,9 +959,10 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.max(implicitWidth, remainingLabel.implicitWidth)
-                    text: Format.elapsed(seekBar.pressed ? seekBar.value : (view.engine ? view.engine.position : 0),
-                                         view.engine ? view.engine.duration : 0)
-                    color: "white"
+                    text: view.live ? "\u25CF LIVE"
+                                    : Format.elapsed(seekBar.pressed ? seekBar.value : (view.engine ? view.engine.position : 0),
+                                                     view.engine ? view.engine.duration : 0)
+                    color: view.live ? "#ff5252" : "white"
                     font.pixelSize: FontUtils.sizeToPixels("small")
                 }
 
@@ -970,7 +976,8 @@ FocusScope {
                     anchors.verticalCenter: parent.verticalCenter
                     from: 0
                     to: Math.max(1, view.engine ? view.engine.duration : 1)
-                    enabled: view.engine !== null && view.engine.seekable && view.started
+                    visible: !view.live
+                    enabled: view.canSeek
                     focusPolicy: Qt.NoFocus
                     // Follows the video, except while held; the seek is made
                     // on letting go, one seek rather than one per move
@@ -992,6 +999,7 @@ FocusScope {
                 Label {
                     id: remainingLabel
                     objectName: "remainingLabel"
+                    visible: !view.live
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     text: Format.remaining(seekBar.pressed ? seekBar.value : (view.engine ? view.engine.position : 0),
@@ -1031,7 +1039,7 @@ FocusScope {
                     objectName: "backButton"
                     width: buttonRow.buttonWidth
                     image: "back10"
-                    enabled: view.engine !== null && view.engine.seekable && view.started
+                    enabled: view.canSeek
                     onClicked: view.jump(-10000)
                 }
                 IconButton {
@@ -1046,13 +1054,14 @@ FocusScope {
                     objectName: "forwardButton"
                     width: buttonRow.buttonWidth
                     image: "fwd10"
-                    enabled: view.engine !== null && view.engine.seekable && view.started
+                    enabled: view.canSeek
                     onClicked: view.jump(10000)
                 }
                 IconButton {
                     objectName: "speedButton"
                     width: buttonRow.buttonWidth
                     label: view.engine ? Format.rate(view.engine.rate) : "1×"
+                    enabled: !view.live
                     onClicked: view.openSpeedPicker()
                 }
                 IconButton {

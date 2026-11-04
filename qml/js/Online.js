@@ -66,6 +66,10 @@ function playStreamFor(sourceId, item, stream) {
     }).map(function(s) {
         return { url: s.url, label: s.label || s.lang || "", lang: s.lang || "", format: s.format || "vtt", default: s.default === true };
     });
+    // A channel (an IPTV list's) has no length, place or end: the player
+    // shows it as live, with nothing to seek or resume.
+    if (item && item.kind === "live")
+        return { url: stream.url, title: titleOf(item), subtitles: subs, startMs: 0, key: itemKey(sourceId, item.id), live: true };
     return {
         url: stream.url,
         title: titleOf(item),

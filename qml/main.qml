@@ -262,9 +262,9 @@ WebOSWindow {
      * Plays an item of a server: asks the service for its link, then plays
      * that as a stream, remembered by the item (Online.itemKey). siblings
      * are the list it was in (a season's episodes), for the next and the
-     * previous one.
+     * previous one. options as playFile's ({position: 0}: from the start).
      */
-    function playOnline(sid, item, siblings) {
+    function playOnline(sid, item, siblings, options) {
         videoSources.resolve(sid, item.id, { maxHeight: streamHeight, codecs: ["h264"], audioCodecs: ["aac", "mp3"] },
                              function(r) {
             // One server video after another (the next episode): the one
@@ -274,7 +274,7 @@ WebOSWindow {
                 videoSources.report(Online.progressArgs(prev.sourceId, prev.item.id, playerView.engine.position,
                                                         playerView.engine.duration, "stopped", prev.session));
             onlineNow = { sourceId: sid, item: item, session: r.stream.session || null, siblings: siblings || [] };
-            playStream(Online.playStreamFor(sid, item, r.stream), {});
+            playStream(Online.playStreamFor(sid, item, r.stream), options || {});
         }, function(r) {
             notice = Online.errorText(r);
         });
@@ -299,8 +299,11 @@ WebOSWindow {
             var now = appWindow.onlineNow;
             if (!k || !now || now.sourceId !== k.sourceId || now.item.id !== k.itemId)
                 return;
+            // Stopped or at its end, the server's list of what to carry on
+            // with has changed: asked for again once the server has it.
             if (now.item.kind !== "live")
-                videoSources.report(Online.progressArgs(k.sourceId, k.itemId, positionMs, durationMs, state, now.session));
+                videoSources.report(Online.progressArgs(k.sourceId, k.itemId, positionMs, durationMs, state, now.session),
+                                    state === "stopped" || state === "ended" ? function() { videoSources.refreshContinue(); } : null);
             if (state === "stopped")
                 appWindow.onlineNow = null;
         }

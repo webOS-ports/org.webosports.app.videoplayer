@@ -75,6 +75,8 @@ TestCase {
     // itemId -> held getItem replies (functions), released by the test.
     property var videoHeld: ({})
     property var videoHold: []
+    // What continueWatching answers.
+    property var videoContinue: []
 
     function movie(i) {
         return { id: "m" + i, kind: "movie", title: "Movie " + (i < 10 ? "0" : "") + i, year: 2000 + i, durationMs: 60000,
@@ -137,6 +139,13 @@ TestCase {
         }
         if (method === "search")
             return { items: a.query === "night" ? [movie(7)] : [], nextCursor: null };
+        if (method === "searchAll") {
+            var found = a.query === "night" ? [movie(7)] : (a.query === "test show" ? [showItem] : []);
+            return { results: found.length > 0 && a.sourceIds.indexOf("acc-jf") >= 0
+                              ? [{ sourceId: "acc-jf", items: found, nextCursor: null }] : [], failed: [] };
+        }
+        if (method === "continueWatching")
+            return { items: test.videoContinue.filter(function(it) { return a.sourceIds.indexOf(it.sourceId) >= 0; }), failed: [] };
         if (method === "resolve")
             return { stream: { url: "https://server.example/" + a.itemId + "/master.m3u8?ApiKey=k", protocol: "hls",
                                subtitles: [], session: { play: "ps-" + a.itemId }, drm: null } };
@@ -162,8 +171,8 @@ TestCase {
         };
         if (method === "getItem" && test.videoHold.indexOf(args.itemId) >= 0)
             test.videoHeld[args.itemId] = answer;
-        else if (method === "listSources" && test.videoHold.indexOf("listSources") >= 0)
-            test.videoHeld["listSources"] = answer;
+        else if ((method === "listSources" || method === "searchAll") && test.videoHold.indexOf(method) >= 0)
+            test.videoHeld[method] = answer;
         else
             Qt.callLater(answer);
     }
@@ -231,6 +240,7 @@ TestCase {
         videoFail = ({});
         videoHold = [];
         videoHeld = ({});
+        videoContinue = [];
         videoServiceThere = true;
         Playback.loadTimeoutMs = 15000;
         Playback.streamLoadTimeoutMs = 30000;
@@ -1508,5 +1518,139 @@ TestCase {
         app.sources.refresh();
         tryCompare(app, "sourceId", "", 2000);
         verify(app.library.visible);
+    }
+
+    // ---- the servers on the device's page ---------------------------------
+
+    function onlineEpisode(n, at, position) {
+        var e = episodeOf(1, n);
+        e.sourceId = "acc-jf";
+        e.progress = { positionMs: position, watched: false };
+        e.lastPlayedAt = at;
+        e.artwork = { thumb: "https://server.example/e" + n + ".jpg" };
+        return e;
+    }
+
+    function test_continue_watching_is_the_device_and_the_servers_by_time() {
+        if (Settings.displayWidth >= Units.gu(90))
+            skip("Continue Watching is on phones");
+        videoContinue = [onlineEpisode(1, "2020-01-01T10:00:00.000Z", 15000),
+                         onlineEpisode(2, new Date(Date.now() + 3600000).toISOString(), 30000)];
+        startApp();
+        tryVerify(function() { return videoCallsOf("continueWatching").length > 0; }, 2000, "asked");
+        compare(videoCallsOf("continueWatching")[0].args.sourceIds, ["acc-jf"], "only the servers that keep a place");
+        compare(videoCallsOf("continueWatching")[0].args.limit, 8);
+        var e = play("Movies/Big Buck.mp4");
+        e.seek(12000);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function() { return app.library.rows.length > 3 && app.library.rows[2].section === "Continue Watching"; }, 2000);
+        var cw = app.library.rows.filter(function(r) { return r.section === "Continue Watching"; });
+        compare(cw.map(function(r) { return r.name; }), ["Test Show S1E2 – Episode 2", "Big Buck", "Test Show S1E1 – Episode 1"]);
+        compare(cw[0].online, true);
+        compare(cw[0].details, "Home · 30 s left");
+        compare(String(cw[0].thumbnail), "https://server.example/e2.jpg");
+        compare(cw[0].progress, 0.5);
+        compare(cw[1].online, false);
+        shot("continue-merged");
+        // A server's row plays from the server.
+        var row = rowFor("Test Show S1E2 – Episode 2");
+        verify(row !== null);
+        mouseClick(row);
+        tryVerify(function() { return app.player.isOpen; }, 2000);
+        var r = videoCallsOf("resolve");
+        compare(r.length, 1);
+        compare([r[0].args.sourceId, r[0].args.itemId], ["acc-jf", "s1e2"]);
+        tryVerify(function() { return app.player.started; }, 3000);
+        var before = videoCallsOf("continueWatching").length;
+        keyClick(Qt.Key_Escape);
+        tryVerify(function() { return videoCallsOf("reportProgress").some(function(c) { return c.args.state === "stopped"; }); }, 2000);
+        tryVerify(function() { return videoCallsOf("continueWatching").length > before; }, 2000, "asked again once stopped");
+    }
+
+    function test_continue_watching_shows_eight() {
+        if (Settings.displayWidth >= Units.gu(90))
+            skip("Continue Watching is on phones");
+        var many = [];
+        for (var i = 1; i <= 10; i++)
+            many.push(onlineEpisode(i, "2020-01-" + (i < 10 ? "0" : "") + i + "T10:00:00.000Z", 15000));
+        videoContinue = many;
+        startApp();
+        tryVerify(function() { return app.library.rows.some(function(r) { return r.online; }); }, 2000);
+        var cw = app.library.rows.filter(function(r) { return r.section === "Continue Watching"; });
+        compare(cw.length, 8);
+        compare(cw[0].name, "Test Show S1E10 – Episode 10", "the last watched first");
+    }
+
+    function test_a_server_row_menu_has_no_forgetting() {
+        if (Settings.displayWidth >= Units.gu(90))
+            skip("Continue Watching is on phones");
+        videoContinue = [onlineEpisode(1, "2020-01-01T10:00:00.000Z", 15000)];
+        startApp();
+        // Played here before: the device keeps a place for it as well.
+        app.resume.videos = JSON.stringify({ "videos:acc-jf/s1e1": { position: 15000, duration: 60000, at: 1 } });
+        tryVerify(function() { return rowFor("Test Show S1E1 – Episode 1") !== null; }, 2000);
+        var row = rowFor("Test Show S1E1 – Episode 1");
+        mousePress(row);
+        wait(1200);
+        mouseRelease(row);
+        var menu = app.library.menu;
+        tryCompare(menu, "opened", true);
+        compare(menu.itemAt(0).text, "Play");
+        verify(menu.itemAt(1).enabled, "from the start");
+        verify(menu.itemAt(2).enabled, "show on its server");
+        verify(!menu.itemAt(3).enabled, "the server keeps its own list");
+        menu.itemAt(2).triggered();
+        menu.close();
+        compare(app.sourceId, "acc-jf");
+    }
+
+    function test_search_also_asks_the_servers() {
+        startApp();
+        tryVerify(function() { return app.sources.list.length === 2; }, 2000);
+        var search = findChild(app.library, "searchField");
+        verify(app.library.serversSearch);
+        search.text = "night";
+        tryVerify(function() { return videoCallsOf("searchAll").length === 1; }, 2000, "after the typing stops");
+        compare(videoCallsOf("searchAll")[0].args, { query: "night", limit: 10, sourceIds: ["acc-jf"] });
+        tryVerify(function() { return app.library.rows.some(function(r) { return r.section === "On Home"; }); }, 2000);
+        var found = app.library.rows.filter(function(r) { return r.section === "On Home"; });
+        compare(found.map(function(r) { return r.name; }), ["Movie 07"]);
+        compare(app.library.rows.filter(function(r) { return r.section === "Matches"; }).length, 1, "the device's match first");
+        compare(app.library.rows[0].section, "Matches");
+        shot("search-servers");
+        app.library.openRow(found[0]);
+        tryVerify(function() { return videoCallsOf("resolve").length === 1; }, 2000);
+        compare(videoCallsOf("resolve")[0].args.itemId, "m7");
+    }
+
+    function test_a_server_search_typed_over_is_not_shown() {
+        videoHold = ["searchAll"];
+        startApp();
+        tryVerify(function() { return app.sources.list.length === 2; }, 2000);
+        var search = findChild(app.library, "searchField");
+        search.text = "night";
+        tryVerify(function() { return videoHeld["searchAll"] !== undefined; }, 2000);
+        verify(app.library.onlineSearching);
+        search.text = "nothing";
+        videoHeld["searchAll"]();
+        wait(100);
+        verify(!app.library.rows.some(function(r) { return r.section === "On Home"; }), "the answer for night");
+        search.text = "";
+        verify(!app.library.onlineSearching);
+        wait(700);
+        compare(videoCallsOf("searchAll").length, 1, "nothing asked for no text");
+    }
+
+    function test_a_show_found_opens_on_its_server() {
+        startApp();
+        tryVerify(function() { return app.sources.list.length === 2; }, 2000);
+        findChild(app.library, "searchField").text = "test show";
+        tryVerify(function() { return app.library.rows.some(function(r) { return r.section === "On Home"; }); }, 2000);
+        var row = app.library.rows.filter(function(r) { return r.section === "On Home"; })[0];
+        app.library.openRow(row);
+        compare(app.sourceId, "acc-jf");
+        tryVerify(function() { return app.browse.current !== null && app.browse.current.kind === "show"; }, 2000);
+        compare(app.browse.current.title, "Test Show");
+        verify(!app.player.isOpen);
     }
 }

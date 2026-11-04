@@ -32,6 +32,11 @@ import LuneOS.Forms 1.0
  * header carries the full name. Shown only when there is a
  * server. The tabs share the width; past what fits they scroll sideways, as
  * the platform TabBar does.
+ *
+ * The bar is light, as the page under it, rather than the platform's dark
+ * grey; the selected tab keeps the platform's blue. Captions are all one
+ * size, on up to two lines: "Free TV – Netherlands" as "Free TV" over
+ * "Netherlands".
  */
 TabBar {
     id: bar
@@ -42,12 +47,33 @@ TabBar {
     property string current: ""
     signal picked(string sourceId)
 
-    readonly property var tabs: [{ sourceId: "", name: "This Device", icon: Qt.resolvedUrl("../images/device.svg") }]
+    readonly property var tabs: [{ sourceId: "", name: "This Device", icon: Qt.resolvedUrl("../images/device-dark.svg"),
+                                   selectedIcon: Qt.resolvedUrl("../images/device.svg") }]
                                 .concat(sources)
     readonly property real tabWidth: Math.max(width / Math.max(1, tabs.length), Units.gu(11))
 
-    implicitHeight: Units.gu(6)
+    implicitHeight: Units.gu(7)
     visible: sources.length > 0
+
+    // A label's "Kind – name" (a Free TV list) breaks at the dash.
+    function captionOf(t) {
+        return String(t.label || t.name || "").replace(" – ", "\n");
+    }
+
+    background: Rectangle {
+        objectName: "sourceBarBackground"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Colors.ruleLight }
+            GradientStop { position: 1.0; color: Colors.pageBackground }
+        }
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: Colors.ruleDark
+        }
+    }
 
     // A tap moves the bar's index itself, which would leave the tab lit when
     // the app shows another library for its own reasons (a server gone);
@@ -79,8 +105,21 @@ TabBar {
             focusPolicy: Qt.NoFocus
 
             // The platform's own content wants a two-frame sprite; account
-            // icons are plain pictures, so the icon and caption are drawn here
-            // and the platform's background (the selected blue) stays.
+            // icons are plain pictures, so the icon and caption are drawn here,
+            // and the tab is the bar's light grey unless it is selected.
+            background: Rectangle {
+                color: tab.checked ? "#4585b8" : tab.down ? "#20000000" : "transparent"
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.topMargin: Units.gu(1)
+                    anchors.bottomMargin: Units.gu(1)
+                    width: 1
+                    color: Colors.ruleDark
+                    visible: !tab.checked
+                }
+            }
             contentItem: Item {
                 Column {
                     anchors.centerIn: parent
@@ -93,7 +132,8 @@ TabBar {
                         sourceSize: Qt.size(Math.ceil(width), Math.ceil(height))
                         fillMode: Image.PreserveAspectFit
                         source: {
-                            var icon = String(tab.modelData.icon || "");
+                            var icon = String(tab.checked && tab.modelData.selectedIcon ? tab.modelData.selectedIcon
+                                                                                       : tab.modelData.icon || "");
                             return icon.charAt(0) === "/" ? "file://" + icon : icon;
                         }
                     }
@@ -101,18 +141,19 @@ TabBar {
                         objectName: "tabCaption"
                         width: parent.width
                         horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
                         // The icon shows the kind of server; the label is the
                         // name without it ("Home", not "Jellyfin – Home").
-                        text: tab.modelData.label || tab.modelData.name
-                        color: "#ffffff"
+                        // Names as they are written, not in capitals, every
+                        // tab at the same size: a long one goes on to a
+                        // second line, then is cut short.
+                        text: bar.captionOf(tab.modelData)
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                        lineHeight: 0.9
+                        color: tab.checked ? "#ffffff" : Colors.text
                         opacity: tab.down ? 0.7 : 1
-                        // Server names and addresses as they are written, not
-                        // in capitals; a long one shrinks a little to fit
-                        // before it is cut short.
                         font.pixelSize: FontUtils.sizeToPixels("x-small")
-                        fontSizeMode: Text.HorizontalFit
-                        minimumPixelSize: Math.round(FontUtils.sizeToPixels("x-small") * 0.75)
                         font.weight: tab.checked ? Font.Bold : Font.Normal
                     }
                 }

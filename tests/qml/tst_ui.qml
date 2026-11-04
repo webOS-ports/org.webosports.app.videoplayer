@@ -162,6 +162,8 @@ TestCase {
         };
         if (method === "getItem" && test.videoHold.indexOf(args.itemId) >= 0)
             test.videoHeld[args.itemId] = answer;
+        else if (method === "listSources" && test.videoHold.indexOf("listSources") >= 0)
+            test.videoHeld["listSources"] = answer;
         else
             Qt.callLater(answer);
     }
@@ -1091,6 +1093,24 @@ TestCase {
         var tabs = findChild(app.browse, "sourceBar");
         compare(findChild(findChild(tabs, "source:acc-jf"), "tabCaption").text, "Home", "the tab shows the label");
         compare(findChild(findChild(tabs, "source:acc-up|uuid-1"), "tabCaption").text, "NAS", "or the name, without a label");
+        // A "Kind – name" label on two lines; every caption the same size, at
+        // most two lines; a light bar, the selected tab in the platform blue.
+        compare(tabs.captionOf({ label: "Free TV – Netherlands" }), "Free TV\nNetherlands");
+        compare(tabs.captionOf({ name: "NAS" }), "NAS");
+        var captions = ["source:", "source:acc-jf", "source:acc-up|uuid-1"].map(function(n) {
+            return findChild(findChild(tabs, n), "tabCaption");
+        });
+        captions.forEach(function(c) {
+            compare(c.font.pixelSize, captions[0].font.pixelSize, "one size for every tab: " + c.text);
+            compare(c.maximumLineCount, 2);
+            compare(c.fontSizeMode, Text.FixedSize);
+        });
+        compare(tabs.background.objectName, "sourceBarBackground", "the bar's own light background");
+        compare(String(captions[2].color), "#2a2929", "an unselected caption dark on the light bar");
+        compare(String(captions[1].color), "#ffffff", "the selected one white on blue");
+        compare(String(findChild(tabs, "source:acc-jf").background.color), "#4585b8");
+        verify(String(findChild(tabs, "source:").contentItem.children[0].children[0].source).indexOf("device-dark.svg") > 0,
+               "the device's icon dark when not selected");
         compare(app.library.visible, false);
         // Rows show their videos; an empty row is not shown; libraries open.
         tryVerify(function() { return browseChild("tile:m3") !== null; }, 2000, "Continue Watching's films");
@@ -1100,6 +1120,13 @@ TestCase {
         verify(browseChild("library:movies") !== null);
         verify(browseChild("library:shows") !== null);
         var home = browseChild("homeView");
+        // Flicks as fast as the finger: the cap in screens, not Qt's 2500 px/s.
+        compare(home.maximumFlickVelocity, home.height * 8);
+        compare(home.flickDeceleration, home.height * 1.5);
+        verify(home.maximumFlickVelocity > 2500);
+        var row = findChild(browseChild("row:continue"), "rowList");
+        if (row)
+            compare(row.maximumFlickVelocity, row.width * 8, "a row by its width");
         verify(browseChild("library:shows").mapToItem(home, 0, 0).y < browseChild("row:continue").mapToItem(home, 0, 0).y,
                "the libraries above the rows");
         compare(videoCallsOf("listItems").map(function(c) { return c.args.sectionId; }).sort(), ["continue", "empty"],
@@ -1112,6 +1139,40 @@ TestCase {
         compare(quits, 0);
     }
 
+    function test_the_servers_shown_at_once_from_the_last_time() {
+        startApp();
+        tryVerify(function() { return app.sources.generation > 0 && app.sources.list.length === 2; }, 2000);
+        verify(!app.sources.fromCache);
+        app.destroy();
+        app = null;
+        wait(50);
+        // The service slow to answer (it looks for media servers): the tabs
+        // from the last answer are there before it.
+        videoHold = ["listSources"];
+        startApp();
+        compare(app.sources.list.map(function(s) { return s.sourceId; }), ["acc-jf", "acc-up|uuid-1"]);
+        verify(app.sources.fromCache);
+        tryVerify(function() { return findChild(app.library, "sourceBar").visible; }, 1000, "the bar at once");
+        compare(app.sources.generation, 0, "not answered yet");
+        tryVerify(function() { return videoHeld["listSources"] !== undefined; }, 1000);
+        videoHeld["listSources"]();
+        tryVerify(function() { return app.sources.generation > 0; }, 1000);
+        verify(!app.sources.fromCache);
+        // Only what a tab shows is kept.
+        var kept = JSON.parse(app.sources._kept.list);
+        var allowed = ["accountId", "features", "icon", "label", "name", "provider", "sourceId", "templateId"];
+        compare(kept.length, 2);
+        kept.forEach(function(k) {
+            Object.keys(k).forEach(function(key) { verify(allowed.indexOf(key) >= 0, "kept " + key); });
+        });
+        // A service gone keeps nothing for the next start.
+        videoHold = [];
+        videoServiceThere = false;
+        app.sources.refresh();
+        tryVerify(function() { return app.sources.list.length === 0; }, 1000);
+        compare(app.sources._kept.list, "[]");
+    }
+
     function test_without_the_service_there_is_no_bar() {
         videoServiceThere = false;
         startApp();
@@ -1120,6 +1181,7 @@ TestCase {
         compare(app.sources.list.length, 0);
         verify(!findChild(app.library, "sourceBar").visible);
         compare(app.sources.errorText, "The video service does not answer.");
+        compare(app.sources._kept.list, "[]", "and none kept for the next start");
     }
 
     function test_a_library_pages_and_plays_with_progress_for_the_server() {

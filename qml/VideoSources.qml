@@ -17,6 +17,8 @@
  */
 
 import QtQuick
+import QtCore
+import LuneOS.Components 1.0
 
 import "js/Online.js" as Online
 
@@ -26,6 +28,11 @@ import "js/Online.js" as Online
  * source: {sourceId, name, icon, provider, features}. The list is asked for
  * again on refresh() - at the start, on coming back to the app - as the
  * service has no subscription.
+ *
+ * The last list answered is kept in the app's settings and shown at the
+ * start, so the tabs are there at once; the service's answer then takes its
+ * place (finding the media servers on the network takes it a few seconds).
+ * Only names, labels and icons are kept: nothing a server signs in with.
  *
  * Every call is one request and one reply: onReply(reply) with
  * returnValue true, else onError(reply) with errorCode and errorText (a
@@ -39,7 +46,33 @@ QtObject {
     property var call: null
 
     property var list: []
+    // The list shown is the one kept from before, not answered yet.
+    property bool fromCache: false
     property bool loading: false
+
+    property Settings _kept: Settings {
+        location: AppFiles.preferencesFile("org.webosports.app.videoplayer")
+        category: "sources"
+        property string list: "[]"
+    }
+    function _keep(l) {
+        _kept.list = JSON.stringify(l.map(function(s) {
+            return { sourceId: s.sourceId, accountId: s.accountId, templateId: s.templateId, provider: s.provider,
+                     name: s.name, label: s.label, icon: s.icon, features: s.features };
+        }));
+    }
+    Component.onCompleted: {
+        var l = [];
+        try {
+            l = JSON.parse(_kept.list);
+        } catch (e) {
+            l = [];
+        }
+        if (Array.isArray(l) && l.length > 0 && list.length === 0) {
+            list = l.filter(function(s) { return s && typeof s.sourceId === "string" && typeof s.name === "string"; });
+            fromCache = list.length > 0;
+        }
+    }
     property real _askedAt: 0
     property string errorText: ""
     // Bumped whenever the list is answered, for views that keep their place.
@@ -85,6 +118,8 @@ QtObject {
         loading = true;
         _ask("listSources", {}, function(r) {
             list = Array.isArray(r.sources) ? r.sources : [];
+            fromCache = false;
+            _keep(list);
             errorText = "";
             loading = false;
             generation++;
@@ -93,6 +128,8 @@ QtObject {
             // just no servers.
             errorText = r.errorCode ? Online.errorText(r) : "";
             list = [];
+            fromCache = false;
+            _keep(list);
             loading = false;
             generation++;
         });

@@ -257,7 +257,7 @@ Item {
 
         SourceBar {
             Layout.fillWidth: true
-            Layout.preferredHeight: Units.gu(6)
+            Layout.preferredHeight: implicitHeight
             sources: appWindow.sources.list
             current: page.sourceId
             onPicked: function(id) { appWindow.showSource(id); }
@@ -333,6 +333,10 @@ Item {
 
         ListView {
             id: home
+            // Qt's 2500 px/s cap is about two screens a second on a dense phone
+            // panel: the cap and the slow-down in screens, as the launcher has them.
+            maximumFlickVelocity: Math.max(height, 1) * 8
+            flickDeceleration: Math.max(height, 1) * 1.5
             objectName: "homeView"
             readonly property var entry: page.current
             clip: true
@@ -389,6 +393,11 @@ Item {
             }
             ListView {
                 id: strip
+                objectName: "rowList"
+                // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                // panel: the cap and the slow-down in screens, as the launcher has them.
+                maximumFlickVelocity: Math.max(width, 1) * 8
+                flickDeceleration: Math.max(width, 1) * 1.5
                 width: rowCol.width
                 readonly property real tileWidth: rowCol.wideTiles ? Units.gu(24) : Units.gu(14)
                 height: (rowCol.wideTiles ? tileWidth * 9 / 16 : tileWidth * 3 / 2) + Units.gu(7)
@@ -445,6 +454,10 @@ Item {
 
         GridView {
             id: grid
+            // Qt's 2500 px/s cap is about two screens a second on a dense phone
+            // panel: the cap and the slow-down in screens, as the launcher has them.
+            maximumFlickVelocity: Math.max(height, 1) * 8
+            flickDeceleration: Math.max(height, 1) * 1.5
             objectName: "listView"
             readonly property var entry: page.current
             readonly property var items: (page.revision, entry && entry.items ? entry.items : [])
@@ -529,6 +542,10 @@ Item {
 
             ListView {
                 id: seasonBar
+                // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                // panel: the cap and the slow-down in screens, as the launcher has them.
+                maximumFlickVelocity: Math.max(width, 1) * 8
+                flickDeceleration: Math.max(width, 1) * 1.5
                 objectName: "seasonBar"
                 Layout.fillWidth: true
                 Layout.preferredHeight: Units.gu(4.5)
@@ -558,6 +575,10 @@ Item {
 
             ListView {
                 id: episodeList
+                // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                // panel: the cap and the slow-down in screens, as the launcher has them.
+                maximumFlickVelocity: Math.max(height, 1) * 8
+                flickDeceleration: Math.max(height, 1) * 1.5
                 objectName: "episodeList"
                 Layout.fillWidth: true
                 Layout.fillHeight: true

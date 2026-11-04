@@ -262,7 +262,8 @@ H.264 and MPEG-4. The Q25 was not used.
 `icon.svg`, drawn into `icon.png` and `icon-256x256.png` by
 `tools/make-icon.sh` with Qt's SVG renderer. It redraws the legacy webOS
 Videos icon (the clapperboard), measured against the original 256x256
-PNG. The tilt and perspective are worked into the outlines, since Qt's
+PNG, with radio waves in the glass's top right corner for streaming, as
+on the Music icon. The tilt and perspective are worked into the outlines, since Qt's
 SVG renderer has no clip paths or filters.
 
 ## Licence

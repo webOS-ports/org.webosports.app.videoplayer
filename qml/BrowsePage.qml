@@ -103,9 +103,21 @@ Item {
 
     function loadHome(entry) {
         entry.loading = true;
-        appWindow.sources.sections(sourceId, function(r) {
+        var sid = sourceId;
+        appWindow.sources.sections(sid, function(r) {
             entry.loading = false;
             entry.sections = Online.homeEntries(r.sections);
+            // One section only (a playlist's channels, a media server's
+            // one folder): its list is the source's top level, with no
+            // tile to tap first. Back from it goes to this device.
+            if (entry.sections.length === 1 && sid === sourceId && stack.length === 1 && stack[0] === entry) {
+                var only = entry.sections[0];
+                var list = { kind: "list", title: only.title, where: { sectionId: only.id }, items: [], cursor: null,
+                             done: false, loading: false };
+                stack = [list];
+                loadMore(list);
+                return;
+            }
             entry.sections.forEach(function(s) {
                 if (s.layout === "row")
                     loadRow(entry, s.id);

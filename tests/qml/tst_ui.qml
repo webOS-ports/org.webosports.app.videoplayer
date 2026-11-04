@@ -1061,8 +1061,11 @@ TestCase {
         var tabs = findChild(app.browse, "sourceBar");
         tryVerify(function() { return tabs.currentItem === findChild(tabs, "source:" + sourceId); }, 1000,
                   "its tab lit on the server's page");
-        tryVerify(function() { return browseChild("homeView") !== null && app.browse.current.sections !== null; }, 2000,
-                  "its home");
+        // Its home, or with one section only, that section's list.
+        tryVerify(function() {
+            var c = app.browse.current;
+            return c !== null && (c.kind === "list" || (browseChild("homeView") !== null && c.sections !== null));
+        }, 2000, "its home");
     }
 
     function tapTile(id) {
@@ -1285,12 +1288,26 @@ TestCase {
         startApp();
         openServer("acc-up|uuid-1");
         verify(!browseChild("browseSearch").visible, "this one cannot search");
-        mouseClick(browseChild("library:c:2"));
+        // Its one section is opened at once: no tile to tap for it.
+        tryVerify(function() { var g = browseChild("listView"); return g !== null && g.count === 1; }, 2000, "the folder list");
+        compare(app.browse.stack.length, 1, "the list is the top level");
+        compare(app.browse.current.kind, "list");
+        verify(browseChild("library:c:2") === null, "no library tile");
+        verify(!findChild(app.browse, "levelTitle").visible, "no title over it");
+        compare(videoCallsOf("listItems").filter(function(c) { return c.args.sectionId === "c:2"; }).length, 1);
         tapTile("f1");
         tapTile("v1");
         tryVerify(function() { return app.player.started; }, 3000);
         compare(app.player.path, "videos:acc-up|uuid-1/v1");
         compare(videoCallsOf("reportProgress").length, 0, "nothing to report yet");
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(app.browse.stack.length, 2, "back in the folder");
+        keyClick(Qt.Key_Escape);
+        compare(app.browse.stack.length, 1, "up to the section's list");
+        verify(browseChild("library:c:2") === null, "not to a home with its tile");
+        keyClick(Qt.Key_Escape);
+        tryCompare(app, "sourceId", "", 1000, "and from it to this device");
     }
 
     function test_search_on_the_server() {

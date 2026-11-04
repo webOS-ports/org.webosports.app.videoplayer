@@ -38,6 +38,8 @@ MUTATIONS = [
     ('live: reported when left for another', 'qml/main.qml', 'if (prev && prev.item.kind !== "live" && playerView.isOpen', 'if (prev && playerView.isOpen', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
     ('live: a length for the headset', 'qml/main.qml', 'playerView.engine !== null && !playerView.live ? playerView.engine.duration : 0', 'playerView.engine !== null ? playerView.engine.duration : 0', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
     ('live: started at a remembered place', 'qml/PlayerView.qml', 'var at = live ? 0 : opts.position', 'var at = opts.position', 'ui::Ui::test_a_live_channel_has_nothing_to_seek_keep_or_report', None),
+    ('server: one section still behind a tile', 'qml/BrowsePage.qml', 'if (entry.sections.length === 1 && sid === sourceId', 'if (false && entry.sections.length === 1 && sid === sourceId', 'ui::Ui::test_a_media_server_folder_and_no_search', None),
+    ('server: one section opened under the home', 'qml/BrowsePage.qml', '                stack = [list];\n                loadMore(list);', '                push(list);\n                loadMore(list);', 'ui::Ui::test_a_media_server_folder_and_no_search', None),
     ('server: progress without the session', 'qml/js/Online.js', '        args.session = session;', '', 'online', None),
     ('server: neighbour does not skip folders', 'qml/js/Online.js', '                if (items[j].playable)\n                    return items[j];', '                return items[j];', 'online', None),
     ('server: watched shows no full bar', 'qml/js/Online.js', '    if (p.watched)\n        return 1;', '', 'online', None),

@@ -1109,16 +1109,34 @@ TestCase {
             compare(c.fontSizeMode, Text.FixedSize);
         });
         compare(tabs.background.objectName, "sourceBarBackground", "the bar's own light background");
-        // Messaging's strip: dark captions, the selected tab its blue.
+        // The header's own picture behind the bar.
+        var header = findChild(app.browse, "browseHeader");
+        compare(String(tabs.background.background.source), String(header.background.source), "the header's grey");
+        verify(String(tabs.background.background.source).indexOf("toolbar-light.png") > 0);
+        // Dark captions, the selected tab Messaging's blue.
         compare(String(captions[2].color), "#333333", "an unselected caption dark on the light bar");
         compare(String(captions[1].color), "#ffffff", "the selected one white on blue");
-        var lit = findChild(tabs, "source:acc-jf").background.gradient;
-        verify(lit !== null, "the selected tab's gradient");
-        compare(String(lit.stops[0].color), "#306ba3");
-        compare(String(lit.stops[1].color), "#6ca6ce");
-        verify(!findChild(tabs, "source:acc-up|uuid-1").background.gradient, "no gradient on the others");
-        compare(String(tabs.background.gradient.stops[0].color), "#e3e3e3");
-        compare(String(tabs.background.gradient.stops[1].color), "#dbdbdb");
+        var lit = findChild(findChild(tabs, "source:acc-jf"), "tabSelected");
+        verify(lit.visible, "the selected tab's blue");
+        compare(String(lit.gradient.stops[0].color), "#306ba3");
+        compare(String(lit.gradient.stops[1].color), "#6ca6ce");
+        verify(!findChild(findChild(tabs, "source:acc-up|uuid-1"), "tabSelected").visible, "no blue on the others");
+        // As drawn: an unselected tab as light as the header, the selected
+        // one blue. (The black tabs the phone drew for "gradient: null" do
+        // not show here: the host's renderer draws that one see-through.)
+        // (The whole window, read at scene points: grabImage(tabs) comes
+        // out cut from the wrong place in the app's window.)
+        var scene = tabs.Window.window.contentItem;
+        waitForRendering(scene);
+        var drawn = grabImage(scene);
+        var spot = function(n) {
+            var t = findChild(tabs, n), p = t.mapToItem(scene, Units.gu(0.5), t.height / 2);
+            return drawn.pixel(Math.round(p.x), Math.round(p.y));
+        };
+        var grey = spot("source:acc-up|uuid-1");
+        verify(grey.r > 0.85 && grey.g > 0.85 && grey.b > 0.85, "an unselected tab light: " + grey);
+        var blue = spot("source:acc-jf");
+        verify(blue.b > blue.r + 0.2, "the selected tab blue: " + blue);
         verify(String(findChild(tabs, "source:").contentItem.children[0].children[0].source).indexOf("device-dark.svg") > 0,
                "the device's icon dark when not selected");
         compare(app.library.visible, false);
@@ -1175,6 +1193,25 @@ TestCase {
         // the row where it was, with that tab in view.
         var row = bar.contentItem;
         verify(row.contentWidth > row.width, "more tabs than fit");
+        // A hard flick runs to the end of the row, and one back to its start
+        // (a snapping row stopped about a screen along).
+        compare(row.snapMode, ListView.NoSnap);
+        compare(row.maximumFlickVelocity, row.width * 8);
+        compare(row.flickDeceleration, row.width * 1.5);
+        var flick = function(from, by) {
+            var y = bar.height / 2, t = touchEvent(bar);
+            t.press(0, bar, from, y).commit();
+            for (var k = 1; k <= 5; k++) { wait(16); t.move(0, bar, from + by * k / 5, y).commit(); }
+            wait(16);
+            t.release(0, bar, from + by, y).commit();
+        };
+        flick(bar.width * 0.85, -bar.width * 0.5);
+        tryVerify(function() { return !row.moving; }, 4000);
+        compare(row.contentX - row.originX, row.contentWidth - row.width, "flicked to the end");
+        compare(app.sourceId, "", "a flick picks nothing");
+        flick(bar.width * 0.15, bar.width * 0.5);
+        tryVerify(function() { return !row.moving; }, 4000);
+        compare(row.contentX - row.originX, 0, "and back to the start");
         row.contentX = row.originX + row.contentWidth - row.width;
         row.movementEnded();
         var x = row.contentX - row.originX;

@@ -33,8 +33,9 @@ import LuneOS.Forms 1.0
  * server. The tabs share the width; past what fits they scroll sideways, as
  * the platform TabBar does.
  *
- * The bar is Messaging's tab strip (its palm-chrome.less, sampled from the
- * Mojo app): light grey, dark captions, the selected tab in its blue.
+ * The bar wears the page header's own background, so the two are one
+ * grey; the captions are dark and the selected tab is Messaging's blue (its
+ * palm-chrome.less, sampled from the Mojo app).
  * Captions are all one size, on up to two lines under an icon that stays
  * in one place: "Free TV – Netherlands" as "Free TV" over "Netherlands".
  *
@@ -42,6 +43,9 @@ import LuneOS.Forms 1.0
  * the row is scrolled (scrollX, scrolled()), so picking a tab far along does
  * not show the next page's bar back at the start; the selected tab is kept
  * in view.
+ *
+ * A flick runs as far as the finger sends it: the platform bar snaps to a
+ * tab, and a snapping ListView stops a hard flick about a screen along.
  */
 TabBar {
     id: bar
@@ -78,25 +82,29 @@ TabBar {
     }
 
     // Messaging's colours (org.webosports.messaging, app/css/palm-chrome.less).
-    readonly property color stripTop: "#e3e3e3"
-    readonly property color stripBottom: "#dbdbdb"
     readonly property color selectedTop: "#306ba3"
     readonly property color selectedBottom: "#6ca6ce"
     readonly property color captionColor: "#333333"
 
-    background: Rectangle {
+    // The header's own picture, edges and all, not a grey picked to match.
+    background: AppHeader {
         objectName: "sourceBarBackground"
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: bar.stripTop }
-            GradientStop { position: 1.0; color: bar.stripBottom }
-        }
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: Colors.ruleDark
-        }
+        enabled: false
+    }
+
+    // The platform bar's row, without its snapping and with the flick speed
+    // of the app's other lists (in widths, not Qt's 2500 px/s).
+    contentItem: ListView {
+        implicitWidth: contentWidth
+        implicitHeight: 40
+        model: bar.contentModel
+        currentIndex: bar.currentIndex
+        spacing: bar.spacing
+        orientation: ListView.Horizontal
+        boundsBehavior: Flickable.StopAtBounds
+        snapMode: ListView.NoSnap
+        maximumFlickVelocity: Math.max(width, 1) * 8
+        flickDeceleration: Math.max(width, 1) * 1.5
     }
 
     // A tap moves the bar's index itself, which would leave the tab lit when
@@ -145,16 +153,20 @@ TabBar {
             focusPolicy: Qt.NoFocus
 
             // The platform's own content wants a two-frame sprite; account
-            // icons are plain pictures, so the icon and caption are drawn here,
-            // and the tab is the bar's light grey unless it is selected.
+            // icons are plain pictures, so the icon and caption are drawn here.
+            // A tab's base is see-through (a pressed one shaded); the blue is
+            // a layer of its own, as "gradient: null" paints a Rectangle black.
             background: Rectangle {
                 objectName: "tabBackground"
                 color: tab.down && !tab.checked ? "#20000000" : "transparent"
-                gradient: tab.checked ? selectedGradient : null
-                Gradient {
-                    id: selectedGradient
-                    GradientStop { position: 0.0; color: bar.selectedTop }
-                    GradientStop { position: 1.0; color: bar.selectedBottom }
+                Rectangle {
+                    objectName: "tabSelected"
+                    anchors.fill: parent
+                    visible: tab.checked
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: bar.selectedTop }
+                        GradientStop { position: 1.0; color: bar.selectedBottom }
+                    }
                 }
                 Rectangle {
                     anchors.right: parent.right

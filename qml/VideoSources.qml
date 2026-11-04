@@ -37,6 +37,11 @@ import "js/Online.js" as Online
  * Every call is one request and one reply: onReply(reply) with
  * returnValue true, else onError(reply) with errorCode and errorText (a
  * service that does not answer at all gives {} there).
+ *
+ * continueItems is what the user was watching on the servers that keep a
+ * place (continueWatching: the last watched first, each item with its
+ * sourceId), asked for again with every answered list and by
+ * refreshContinue() (after a video of a server stops).
  */
 QtObject {
     id: sources
@@ -73,6 +78,36 @@ QtObject {
             fromCache = list.length > 0;
         }
     }
+    property var continueItems: []
+    // How many to show of them, at most.
+    readonly property int continueLimit: 8
+    property int _continueAsk: 0
+    onGenerationChanged: refreshContinue()
+
+    function _withFeature(name) {
+        return list.filter(function(s) { return s && s.features && s.features[name] === true; })
+                   .map(function(s) { return s.sourceId; });
+    }
+
+    function refreshContinue() {
+        var ids = _withFeature("continueWatching");
+        var ask = ++_continueAsk;
+        if (ids.length === 0) {
+            continueItems = [];
+            return;
+        }
+        _ask("continueWatching", { limit: continueLimit, sourceIds: ids }, function(r) {
+            // Only the last asked: an older answer is out of date.
+            if (ask !== _continueAsk)
+                return;
+            continueItems = (Array.isArray(r.items) ? r.items : []).filter(function(it) {
+                return it && typeof it.id === "string" && typeof it.title === "string" && typeof it.sourceId === "string";
+            });
+        }, function(r) {
+            // Kept as it was: a server that does not answer now still had them.
+        });
+    }
+
     property real _askedAt: 0
     property string errorText: ""
     // Bumped whenever the list is answered, for views that keep their place.
@@ -170,11 +205,29 @@ QtObject {
         _ask("search", args, onReply, onError);
     }
 
+    // Every server that can search: onReply(results), results [{sourceId,
+    // items}] in the order of the sources, those with nothing left out.
+    function searchAll(query, onReply, onError) {
+        var ids = _withFeature("search");
+        if (ids.length === 0) {
+            if (onReply)
+                onReply([]);
+            return;
+        }
+        _ask("searchAll", { query: query, limit: 10, sourceIds: ids }, function(r) {
+            if (onReply)
+                onReply((Array.isArray(r.results) ? r.results : []).filter(function(x) {
+                    return x && typeof x.sourceId === "string" && Array.isArray(x.items) && x.items.length > 0;
+                }));
+        }, onError);
+    }
+
     function resolve(sourceId, itemId, prefer, onReply, onError) {
         _ask("resolve", { sourceId: sourceId, itemId: itemId, prefer: prefer || {} }, onReply, onError);
     }
 
-    function report(args) {
-        _ask("reportProgress", args, null, null);
+    // onDone() once the server has it, or has said no.
+    function report(args, onDone) {
+        _ask("reportProgress", args, onDone || null, onDone || null);
     }
 }

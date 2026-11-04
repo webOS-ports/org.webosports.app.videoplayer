@@ -35,10 +35,16 @@ A QML app on Qt Multimedia (its GStreamer backend), with no C++ of its own.
   MKV, WebM, AVI, MPEG, MPEG-TS, OGV, FLV, WMV, ASF.
 - A list on phones, a grid of pictures on a tablet; sorted by name (with
   "Episode 2" before "Episode 10"), date or size from the app menu;
-  searched by name and folder (accents ignored) once there are six or more.
+  searched by name and folder (accents ignored) once there are six or more,
+  or as soon as a video server that can search is set up. The search asks
+  those servers too, half a second after the typing stops: what each finds
+  comes under the device's matches, as "On <server>".
 - **Continue Watching** at the top: the videos stopped part way, with how
-  much is left. Press and hold a video for Play from the Start, or to take
-  it off the list.
+  much is left - this device's and those of the servers that keep a place
+  (Jellyfin, Emby, Plex), in one list, the last watched first, eight at
+  most. Press and hold a video for Play from the Start, or to take it off
+  the list (a server's own list stays as the server keeps it; Show on Its
+  Server opens the server instead).
 - The length of each video once it has been played, and a picture of it
   taken a few seconds in. With **Read Video Lengths** in the app menu the
   lengths of all videos are read in the background, one file at a time
@@ -108,8 +114,9 @@ by the app, with `snapshotDelay`).
 
 - A link (http or https) as the launch target plays that stream: MP4 or
   WebM over HTTP, HLS (`.m3u8`) and DASH (`.mpd`) through GStreamer's
-  adaptive demuxers. The video services in Synergy (Jellyfin, PeerTube,
-  UPnP/DLNA) open their videos this way, with more about each:
+  adaptive demuxers. The video services in Synergy (Jellyfin, Emby,
+  Plex, PeerTube, UPnP/DLNA, M3U playlists) open their videos this way,
+  with more about each:
 
       {"stream": {"url": "https://server/Videos/1/master.m3u8?api_key=...",
                   "title": "Episode One", "key": "videos:<account>:<item>",

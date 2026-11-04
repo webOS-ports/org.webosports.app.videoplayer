@@ -40,6 +40,7 @@ QtObject {
 
     property var list: []
     property bool loading: false
+    property real _askedAt: 0
     property string errorText: ""
     // Bumped whenever the list is answered, for views that keep their place.
     property int generation: 0
@@ -76,6 +77,11 @@ QtObject {
     }
 
     function refresh() {
+        // The start and the window's first activation both ask; one answer
+        // on its way does for both - unless it is long overdue.
+        if (loading && Date.now() - _askedAt < 10000)
+            return;
+        _askedAt = Date.now();
         loading = true;
         _ask("listSources", {}, function(r) {
             list = Array.isArray(r.sources) ? r.sources : [];

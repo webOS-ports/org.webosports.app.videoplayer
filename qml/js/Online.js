@@ -178,9 +178,13 @@ function appendPage(items, page) {
 }
 
 // Grid sections are libraries to open; row sections show their items in
-// place.
+// place. The libraries (Movies, Shows, a media server's folders) come first,
+// at the top where they are found without scrolling past the rows, each
+// group in the server's order.
 function homeEntries(sections) {
-    return (sections || []).map(function(s) {
+    var all = (sections || []).map(function(s) {
         return { id: s.id, title: s.title, layout: s.layout === "row" ? "row" : "grid" };
     });
+    return all.filter(function(s) { return s.layout === "grid"; })
+              .concat(all.filter(function(s) { return s.layout === "row"; }));
 }

@@ -1054,8 +1054,13 @@ TestCase {
         verify(bar.visible, "the libraries bar shown");
         var chip = findChild(bar, "source:" + sourceId);
         verify(chip, sourceId);
+        compare(chip.mapToItem(bar, 0, 0).y, 0, "the tab fills the bar, not shifted up");
+        compare(chip.height, bar.height);
         mouseClick(chip);
         tryVerify(function() { return app.browse.visible; }, 1000, "the server's library shown");
+        var tabs = findChild(app.browse, "sourceBar");
+        tryVerify(function() { return tabs.currentItem === findChild(tabs, "source:" + sourceId); }, 1000,
+                  "its tab lit on the server's page");
         tryVerify(function() { return browseChild("homeView") !== null && app.browse.current.sections !== null; }, 2000,
                   "its home");
     }
@@ -1063,6 +1068,16 @@ TestCase {
     function tapTile(id) {
         var tile = null;
         tryVerify(function() { tile = browseChild("tile:" + id); return tile !== null && tile.visible; }, 2000, "tile " + id);
+        // With the libraries on top a row can start low on a short screen
+        // (the Q25): scroll it up first, as a user would.
+        var home = browseChild("homeView");
+        if (home !== null && home.visible) {
+            var below = tile.mapToItem(home, 0, 0).y + tile.height - home.height;
+            if (below > 0) {
+                home.contentY += below;
+                wait(50);
+            }
+        }
         mouseClick(tile);
     }
 
@@ -1078,6 +1093,9 @@ TestCase {
         verify(!empty || !empty.visible, "an empty row is left out");
         verify(browseChild("library:movies") !== null);
         verify(browseChild("library:shows") !== null);
+        var home = browseChild("homeView");
+        verify(browseChild("library:shows").mapToItem(home, 0, 0).y < browseChild("row:continue").mapToItem(home, 0, 0).y,
+               "the libraries above the rows");
         compare(videoCallsOf("listItems").map(function(c) { return c.args.sectionId; }).sort(), ["continue", "empty"],
                 "only rows load at once");
         shot("server-home");
@@ -1121,15 +1139,11 @@ TestCase {
         compare(res.sourceId, "acc-jf");
         compare(res.itemId, "m1");
         compare(res.prefer.maxHeight, Math.min(app.width, app.height) >= 1000 ? 1080 : 720);
-        var w = app.width, h = app.height;
-        app.width = 1920;
-        app.height = 1200;
-        compare(app.streamHeight, 1080, "a big screen asks for 1080 lines");
-        app.width = 800;
-        app.height = 1280;
-        compare(app.streamHeight, 720);
-        app.width = w;
-        app.height = h;
+        // The test window cannot be made bigger than the offscreen screen,
+        // so the rule is asked directly.
+        compare(app.streamHeightFor(1920, 1200), 1080, "a big screen asks for 1080 lines");
+        compare(app.streamHeightFor(1200, 1920), 1080);
+        compare(app.streamHeightFor(800, 1280), 720);
         compare(app.player.title, "Movie 01");
         compare(app.player.path, "videos:acc-jf/m1");
         compare(app.player.stream.url, "https://server.example/m1/master.m3u8?ApiKey=k");

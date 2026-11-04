@@ -193,9 +193,7 @@ Item {
 
         SourceBar {
             Layout.fillWidth: true
-            Layout.margins: Units.gu(1)
-            Layout.bottomMargin: 0
-            Layout.preferredHeight: Units.gu(5)
+            Layout.preferredHeight: Units.gu(6)
             sources: appWindow.sources.list
             current: appWindow.sourceId
             onPicked: function(id) { appWindow.showSource(id); }

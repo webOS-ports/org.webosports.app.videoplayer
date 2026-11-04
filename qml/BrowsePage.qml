@@ -33,7 +33,8 @@ import "js/Online.js" as Online
  * rows (Continue Watching, Next Up, Recently Added) show their videos in
  * place; libraries (Movies, Shows, a media server's folders) open as a grid.
  * A show opens on its seasons and their episodes. The search field searches
- * the server. Back goes up a level, and from the home to this device.
+ * the server. The back gesture goes up a level, and from the home to this
+ * device; there is no back button.
  *
  * Each level is an entry on `stack`, which keeps what it loaded - going
  * back shows it again as it was, without asking the server again.
@@ -244,9 +245,7 @@ Item {
 
         SourceBar {
             Layout.fillWidth: true
-            Layout.margins: Units.gu(1)
-            Layout.bottomMargin: 0
-            Layout.preferredHeight: Units.gu(5)
+            Layout.preferredHeight: Units.gu(6)
             sources: appWindow.sources.list
             current: page.sourceId
             onPicked: function(id) { appWindow.showSource(id); }
@@ -273,13 +272,6 @@ Item {
             visible: page.stack.length > 1 || page.canSearch
             spacing: Units.gu(1)
 
-            Button {
-                objectName: "upButton"
-                visible: page.stack.length > 1
-                text: "‹ Back"
-                flat: true
-                onClicked: page.pop()
-            }
             Label {
                 objectName: "levelTitle"
                 Layout.fillWidth: true

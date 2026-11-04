@@ -251,7 +251,10 @@ WebOSWindow {
     }
 
     // The tallest picture to ask a server for: what the screen shows.
-    readonly property int streamHeight: Math.min(width, height) >= 1000 ? 1080 : 720
+    readonly property int streamHeight: streamHeightFor(width, height)
+    function streamHeightFor(w, h) {
+        return Math.min(w, h) >= 1000 ? 1080 : 720;
+    }
 
     /*
      * Plays an item of a server: asks the service for its link, then plays

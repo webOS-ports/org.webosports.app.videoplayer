@@ -115,7 +115,11 @@ TestCase {
 
     function test_home_entries() {
         compare(Online.homeEntries([{ id: "c", title: "Continue", layout: "row" }, { id: "v", title: "Movies", layout: "odd" }]),
-                [{ id: "c", title: "Continue", layout: "row" }, { id: "v", title: "Movies", layout: "grid" }]);
+                [{ id: "v", title: "Movies", layout: "grid" }, { id: "c", title: "Continue", layout: "row" }],
+                "the libraries on top");
+        compare(Online.homeEntries([{ id: "c", layout: "row" }, { id: "m", layout: "grid" }, { id: "r", layout: "row" },
+                                    { id: "s", layout: "grid" }]).map(function(s) { return s.id; }),
+                ["m", "s", "c", "r"], "each group in the server's order");
         compare(Online.homeEntries(undefined), []);
     }
 }

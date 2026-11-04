@@ -191,6 +191,14 @@ Item {
         anchors.bottom: parent.bottom
         spacing: 0
 
+        SourceBar {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Units.gu(6)
+            sources: appWindow.sources.list
+            current: appWindow.sourceId
+            onPicked: function(id) { appWindow.showSource(id); }
+        }
+
         StatusNotice {
             objectName: "libraryNotice"
             Layout.fillWidth: true

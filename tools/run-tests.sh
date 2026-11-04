@@ -29,7 +29,7 @@ run() {
 }
 
 status=0
-for t in subtitles format library playback scanner mediasession; do
+for t in subtitles format library playback scanner mediasession online; do
     rm -rf "$CONF/config" "$CONF/cache"
     run -input tests/qml/tst_$t.qml "$@" || status=1
 done

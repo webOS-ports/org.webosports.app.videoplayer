@@ -22,6 +22,37 @@ LC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "luneos-comp
 
 # (what it breaks, file, text, replacement, test file, profile)
 MUTATIONS = [
+    # Videos from servers. (The sources are asked for at the start and on
+    # coming to the front; a test window comes to the front at once, so
+    # dropping either alone is not seen, and is not listed.)
+    ('server: ended reported at 0', 'qml/js/Online.js', 'var at = state === "ended" && durationMs > 0 ? durationMs : Math.max(0, Math.round(positionMs));', 'var at = Math.max(0, Math.round(positionMs));', 'online', None),
+    ('server: progress without the session', 'qml/js/Online.js', '        args.session = session;', '', 'online', None),
+    ('server: neighbour does not skip folders', 'qml/js/Online.js', '                if (items[j].playable)\n                    return items[j];', '                return items[j];', 'online', None),
+    ('server: watched shows no full bar', 'qml/js/Online.js', '    if (p.watched)\n        return 1;', '', 'online', None),
+    ('server: bus error codes shown raw', 'qml/js/Online.js', 'if (typeof code !== "string" || code === "")', 'if (!code)', 'online', None),
+    ('server: repeats kept when paging', 'qml/js/Online.js', '        if (!seen[add[j].id]) {', '        if (true) {', 'online', None),
+    ('server: parseKey splits at the last slash', 'qml/js/Online.js', 'var slash = rest.indexOf("/");', 'var slash = rest.lastIndexOf("/");', 'online', None),
+    ('server: libraries left below the rows', 'qml/js/Online.js', 'return all.filter(function(s) { return s.layout === "grid"; })\n              .concat(all.filter(function(s) { return s.layout === "row"; }));', 'return all;', 'online', None),
+    ('tabs: the full name in the tab', 'qml/components/SourceBar.qml', 'text: tab.modelData.label || tab.modelData.name', 'text: tab.modelData.name', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
+    ('tabs: no name without a label', 'qml/components/SourceBar.qml', 'text: tab.modelData.label || tab.modelData.name', 'text: tab.modelData.label', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
+    ('tabs: the lit tab does not follow the library', 'qml/components/SourceBar.qml', '    onCurrentChanged: follow()\n', '', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
+    ('tabs: a tab given its height and shifted up', 'qml/components/SourceBar.qml', '            implicitHeight: bar.availableHeight\n', '            height: bar.height\n', 'ui::Ui::test_servers_are_libraries_beside_the_device', None),
+    ('server: the list asked twice at the start', 'qml/VideoSources.qml', '        if (loading && Date.now() - _askedAt < 10000)\n            return;\n', '', 'ui::Ui::test_without_the_service_there_is_no_bar', None),
+    ('server: a big screen asks for 720 lines', 'qml/main.qml', 'return Math.min(w, h) >= 1000 ? 1080 : 720;', 'return 720;', 'ui::Ui::test_a_library_pages_and_plays_with_progress_for_the_server', None),
+    ('server: episode title without the show', 'qml/js/Online.js', 'if (item.kind === "episode" && item.seriesTitle) {', 'if (false) {', 'online', None),
+    ('server: libraries load at once', 'qml/BrowsePage.qml', '                if (s.layout === "row")\n                    loadRow(entry, s.id);', '                loadRow(entry, s.id);', 'ui::Ui::test_servers_are_libraries_beside_the_device', 'mindphone'),
+    ('server: no next page', 'qml/BrowsePage.qml', '                if (atYEnd && entry)\n                    page.loadMore(entry);', '', 'ui::Ui::test_a_library_pages_and_plays_with_progress_for_the_server', 'mindphone'),
+    ('server: pages after the last', 'qml/BrowsePage.qml', '            entry.done = !entry.cursor;', '            entry.done = false;', 'ui::Ui::test_a_library_pages_and_plays_with_progress_for_the_server', 'mindphone'),
+    ('server: searches pile up', 'qml/BrowsePage.qml', '                    if (page.current && page.current.kind === "list" && page.current.query !== undefined)\n                        page.pop();', '', 'ui::Ui::test_search_on_the_server', 'mindphone'),
+    ('server: back leaves the app from a server', 'qml/BrowsePage.qml', '        if (sourceId !== "") {\n            appWindow.showSource("");\n            return true;\n        }', '', 'ui::Ui::test_servers_are_libraries_beside_the_device', 'mindphone'),
+    ('server: a show opens as a list', 'qml/BrowsePage.qml', '        } else if (item.kind === "show") {\n            openShow(item);', '        } else if (false) {', 'ui::Ui::test_a_show_opens_on_its_seasons_and_plays_on', 'mindphone'),
+    ('server: the season picked ignored', 'qml/BrowsePage.qml', '            if (entry.season !== season)\n                return;\n            entry.episodes', '            entry.episodes', 'ui::Ui::test_a_show_opens_on_its_seasons_and_plays_on', 'mindphone'),
+    ('server: progress not reported', 'qml/main.qml', '            videoSources.report(Online.progressArgs(k.sourceId, k.itemId, positionMs, durationMs, state, now.session));', '', 'ui::Ui::test_a_library_pages_and_plays_with_progress_for_the_server', 'mindphone'),
+    ('server: the episode left not stopped', 'qml/main.qml', '            if (prev && playerView.isOpen && playerView.engine && playerView.started)', '            if (false)', 'ui::Ui::test_a_show_opens_on_its_seasons_and_plays_on', 'mindphone'),
+    ('server: headset next always jumps', 'qml/main.qml', '                if (!appWindow.playNeighbour(1))', '                if (true)', 'ui::Ui::test_a_show_opens_on_its_seasons_and_plays_on', 'mindphone'),
+    ('server: resolve errors not shown', 'qml/main.qml', '            notice = Online.errorText(r);', '', 'ui::Ui::test_errors_say_what_to_do', 'mindphone'),
+    ('server: a gone server stays shown', 'qml/main.qml', '            if (appWindow.sourceId !== "" && find(appWindow.sourceId) === null)', '            if (false)', 'ui::Ui::test_a_server_gone_goes_back_to_the_device', 'mindphone'),
+    ('server: bar shown with no servers', 'qml/components/SourceBar.qml', '    visible: sources.length > 0', '    visible: true', 'ui::Ui::test_without_the_service_there_is_no_bar', 'mindphone'),
     ("WebVTT voice tags shown", "qml/js/Subtitles.js", "    s = s.replace(/<[^>]*>/g, \"\");\n    s = s.replace(/\\u0001",
      "    s = s.replace(/\\u0001", "subtitles", None),
     ("WebVTT cue times read without hours", "qml/js/Subtitles.js", "var hours = m[1] === undefined ? 0 : parseInt(m[1], 10);",

@@ -29,6 +29,7 @@ import LuneOS.System 1.0
 import LuneOS.Components 1.0 as LC
 import "js/Library.js" as Library
 import "js/MediaSession.js" as Session
+import "js/Online.js" as Online
 
 /*
  * Videos: the videos on the device, and a player for them.
@@ -37,6 +38,9 @@ import "js/MediaSession.js" as Session
  * browser's downloads (appinfo.json's mimeTypes) - it plays that video;
  * with an http(s) link as the target, or {"stream": {...}} (playStream),
  * it plays that stream.
+ * The video servers of the accounts (org.webosports.service.videos:
+ * Jellyfin, PeerTube, UPnP/DLNA media servers) are libraries beside this
+ * device's: picked in the bar under the header, browsed in BrowsePage.
  * The back gesture (an Escape key) closes the player, then the app.
  */
 WebOSWindow {
@@ -72,6 +76,14 @@ WebOSWindow {
     property alias appMenu: appMenu
     property alias probeGuard: probeGuard
     property alias session: mediaSession
+    property alias sources: videoSources
+    property alias browse: browsePage
+
+    // The library shown: "" for this device, else a server's sourceId.
+    property string sourceId: ""
+    // What plays from a server: {sourceId, item, session, siblings}, else
+    // null.
+    property var onlineNow: null
 
     // The back gesture in the library ends the app (not in the tests).
     property bool quitOnBack: true
@@ -160,6 +172,7 @@ WebOSWindow {
     onActiveChanged: {
         if (active) {
             videoScanner.rescan();
+            videoSources.refresh();
         } else {
             playerView.interrupt("inactive");
             playerView.saveState();
@@ -214,6 +227,80 @@ WebOSWindow {
     LunaService {
         id: service
         name: "org.webosports.app.videoplayer"
+    }
+
+    // function(uri, json, onReply, onError): one call on the bus; the tests
+    // replace it.
+    property var busCall: function(uri, json, onReply, onError) {
+        return service.call(uri, json, onReply || function() {}, onError || function() {});
+    }
+
+    VideoSources {
+        id: videoSources
+        call: appWindow.busCall
+        // A server gone (the account removed, the media server off): back
+        // to this device.
+        onGenerationChanged: {
+            if (appWindow.sourceId !== "" && find(appWindow.sourceId) === null)
+                appWindow.showSource("");
+        }
+    }
+
+    function showSource(id) {
+        sourceId = id;
+    }
+
+    // The tallest picture to ask a server for: what the screen shows.
+    readonly property int streamHeight: streamHeightFor(width, height)
+    function streamHeightFor(w, h) {
+        return Math.min(w, h) >= 1000 ? 1080 : 720;
+    }
+
+    /*
+     * Plays an item of a server: asks the service for its link, then plays
+     * that as a stream, remembered by the item (Online.itemKey). siblings
+     * are the list it was in (a season's episodes), for the next and the
+     * previous one.
+     */
+    function playOnline(sid, item, siblings) {
+        videoSources.resolve(sid, item.id, { maxHeight: streamHeight, codecs: ["h264"], audioCodecs: ["aac", "mp3"] },
+                             function(r) {
+            // One server video after another (the next episode): the one
+            // left is stopped there.
+            var prev = onlineNow;
+            if (prev && playerView.isOpen && playerView.engine && playerView.started)
+                videoSources.report(Online.progressArgs(prev.sourceId, prev.item.id, playerView.engine.position,
+                                                        playerView.engine.duration, "stopped", prev.session));
+            onlineNow = { sourceId: sid, item: item, session: r.stream.session || null, siblings: siblings || [] };
+            playStream(Online.playStreamFor(sid, item, r.stream), {});
+        }, function(r) {
+            notice = Online.errorText(r);
+        });
+    }
+
+    // The next (1) or previous (-1) episode of what plays; false if none.
+    function playNeighbour(step) {
+        if (!onlineNow || !onlineNow.item || onlineNow.item.kind !== "episode")
+            return false;
+        var next = Online.neighbour(onlineNow.siblings, onlineNow.item.id, step);
+        if (!next)
+            return false;
+        playOnline(onlineNow.sourceId, next, onlineNow.siblings);
+        return true;
+    }
+
+    // The server keeps where it got to (Jellyfin's Continue Watching).
+    Connections {
+        target: playerView
+        function onPositionReported(path, positionMs, durationMs, state) {
+            var k = Online.parseKey(path);
+            var now = appWindow.onlineNow;
+            if (!k || !now || now.sourceId !== k.sourceId || now.item.id !== k.itemId)
+                return;
+            videoSources.report(Online.progressArgs(k.sourceId, k.itemId, positionMs, durationMs, state, now.session));
+            if (state === "stopped")
+                appWindow.onlineNow = null;
+        }
     }
 
     // function(uri, json, onReply, onError): a subscription on the bus,
@@ -286,10 +373,14 @@ WebOSWindow {
                 playerView.play();
             else if (action === "pause")
                 playerView.pause();
-            else if (action === "forward")
-                playerView.jump(Session.JUMP_MS);
-            else if (action === "back")
-                playerView.jump(-Session.JUMP_MS);
+            else if (action === "forward") {
+                // An episode goes on to the next one, anything else 10 s.
+                if (!appWindow.playNeighbour(1))
+                    playerView.jump(Session.JUMP_MS);
+            } else if (action === "back") {
+                if (!appWindow.playNeighbour(-1))
+                    playerView.jump(-Session.JUMP_MS);
+            }
         }
     }
 
@@ -399,7 +490,14 @@ WebOSWindow {
         LibraryPage {
             id: libraryPage
             anchors.fill: parent
-            visible: !playerView.isOpen
+            visible: !playerView.isOpen && appWindow.sourceId === ""
+        }
+
+        BrowsePage {
+            id: browsePage
+            anchors.fill: parent
+            visible: !playerView.isOpen && appWindow.sourceId !== ""
+            sourceId: appWindow.sourceId
         }
 
         PlayerView {
@@ -420,7 +518,7 @@ WebOSWindow {
                 event.accepted = true;
                 if (playerView.handleBack())
                     return;
-                if (libraryPage.handleBack())
+                if (appWindow.sourceId !== "" ? browsePage.handleBack() : libraryPage.handleBack())
                     return;
                 appWindow.quitRequested();
                 if (appWindow.quitOnBack)
@@ -441,5 +539,6 @@ WebOSWindow {
     Component.onCompleted: {
         probeGuard.check();
         videoScanner.rescan();
+        videoSources.refresh();
     }
 }

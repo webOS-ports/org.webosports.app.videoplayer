@@ -81,6 +81,8 @@ WebOSWindow {
 
     // The library shown: "" for this device, else a server's sourceId.
     property string sourceId: ""
+    // How far the libraries' tab row is scrolled, for both pages' bars.
+    property real tabScrollX: 0
     // What plays from a server: {sourceId, item, session, siblings}, else
     // null.
     property var onlineNow: null
@@ -268,7 +270,7 @@ WebOSWindow {
             // One server video after another (the next episode): the one
             // left is stopped there.
             var prev = onlineNow;
-            if (prev && playerView.isOpen && playerView.engine && playerView.started)
+            if (prev && prev.item.kind !== "live" && playerView.isOpen && playerView.engine && playerView.started)
                 videoSources.report(Online.progressArgs(prev.sourceId, prev.item.id, playerView.engine.position,
                                                         playerView.engine.duration, "stopped", prev.session));
             onlineNow = { sourceId: sid, item: item, session: r.stream.session || null, siblings: siblings || [] };
@@ -297,7 +299,8 @@ WebOSWindow {
             var now = appWindow.onlineNow;
             if (!k || !now || now.sourceId !== k.sourceId || now.item.id !== k.itemId)
                 return;
-            videoSources.report(Online.progressArgs(k.sourceId, k.itemId, positionMs, durationMs, state, now.session));
+            if (now.item.kind !== "live")
+                videoSources.report(Online.progressArgs(k.sourceId, k.itemId, positionMs, durationMs, state, now.session));
             if (state === "stopped")
                 appWindow.onlineNow = null;
         }
@@ -366,7 +369,7 @@ WebOSWindow {
         active: playerView.isOpen
         playing: playerView.engine !== null && playerView.engine.playing
         title: playerView.title
-        durationMs: playerView.engine !== null ? playerView.engine.duration : 0
+        durationMs: playerView.engine !== null && !playerView.live ? playerView.engine.duration : 0
         onActionRequested: function(action) {
             playerView.log("mediaKey", { action: action });
             if (action === "play")

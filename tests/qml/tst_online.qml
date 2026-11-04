@@ -57,6 +57,13 @@ TestCase {
                                  { url: "https://s/nl.srt", label: "Dutch", lang: "", format: "srt", default: false }] });
         compare(Online.playStreamFor("acc", episode, { url: "http://s/v", startMs: 30000 }).startMs, 30000, "the stream's own wins");
         compare(Online.playStreamFor("acc", { id: "m", title: "M" }, { url: "http://s/v" }).startMs, 0);
+        verify(Online.playStreamFor("acc", episode, { url: "http://s/v" }).live === undefined);
+    }
+
+    function test_a_channel_is_live_and_starts_now() {
+        var ch = { id: "ch1", kind: "live", title: "Channel One", progress: { positionMs: 5000 } };
+        compare(Online.playStreamFor("acc", ch, { url: "http://s/ch1.m3u8", startMs: 9000, subtitles: [] }),
+                { url: "http://s/ch1.m3u8", title: "Channel One", key: "videos:acc/ch1", startMs: 0, subtitles: [], live: true });
     }
 
     function test_progress_reports() {

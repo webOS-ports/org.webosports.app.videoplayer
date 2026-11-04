@@ -162,6 +162,8 @@ TestCase {
         };
         if (method === "getItem" && test.videoHold.indexOf(args.itemId) >= 0)
             test.videoHeld[args.itemId] = answer;
+        else if (method === "listSources" && test.videoHold.indexOf("listSources") >= 0)
+            test.videoHeld["listSources"] = answer;
         else
             Qt.callLater(answer);
     }
@@ -819,6 +821,9 @@ TestCase {
     // the file when it is, and the library gets its picture.
     function test_launch_before_the_scan_gets_a_picture() {
         startApp();
+        // The start's own scan done first: one still running would fill the
+        // list again behind the test's back (a busy machine, a slow screen).
+        tryVerify(function() { return app.scanner.generation > 0 && !app.scanner.running; }, 5000, "the first scan done");
         app.scanner.files = [];
         app.launchParams = JSON.stringify({ "target": root + "/clip.AVI" });
         tryVerify(function() { return app.player.started; }, 3000);
@@ -1061,8 +1066,11 @@ TestCase {
         var tabs = findChild(app.browse, "sourceBar");
         tryVerify(function() { return tabs.currentItem === findChild(tabs, "source:" + sourceId); }, 1000,
                   "its tab lit on the server's page");
-        tryVerify(function() { return browseChild("homeView") !== null && app.browse.current.sections !== null; }, 2000,
-                  "its home");
+        // Its home, or with one section only, that section's list.
+        tryVerify(function() {
+            var c = app.browse.current;
+            return c !== null && (c.kind === "list" || (browseChild("homeView") !== null && c.sections !== null));
+        }, 2000, "its home");
     }
 
     function tapTile(id) {
@@ -1088,6 +1096,49 @@ TestCase {
         var tabs = findChild(app.browse, "sourceBar");
         compare(findChild(findChild(tabs, "source:acc-jf"), "tabCaption").text, "Home", "the tab shows the label");
         compare(findChild(findChild(tabs, "source:acc-up|uuid-1"), "tabCaption").text, "NAS", "or the name, without a label");
+        // A "Kind – name" label on two lines; every caption the same size, at
+        // most two lines; a light bar, the selected tab in the platform blue.
+        compare(tabs.captionOf({ label: "Free TV – Netherlands" }), "Free TV\nNetherlands");
+        compare(tabs.captionOf({ name: "NAS" }), "NAS");
+        var captions = ["source:", "source:acc-jf", "source:acc-up|uuid-1"].map(function(n) {
+            return findChild(findChild(tabs, n), "tabCaption");
+        });
+        captions.forEach(function(c) {
+            compare(c.font.pixelSize, captions[0].font.pixelSize, "one size for every tab: " + c.text);
+            compare(c.maximumLineCount, 2);
+            compare(c.fontSizeMode, Text.FixedSize);
+        });
+        compare(tabs.background.objectName, "sourceBarBackground", "the bar's own light background");
+        // The header's own picture behind the bar.
+        var header = findChild(app.browse, "browseHeader");
+        compare(String(tabs.background.background.source), String(header.background.source), "the header's grey");
+        verify(String(tabs.background.background.source).indexOf("toolbar-light.png") > 0);
+        // Dark captions, the selected tab Messaging's blue.
+        compare(String(captions[2].color), "#333333", "an unselected caption dark on the light bar");
+        compare(String(captions[1].color), "#ffffff", "the selected one white on blue");
+        var lit = findChild(findChild(tabs, "source:acc-jf"), "tabSelected");
+        verify(lit.visible, "the selected tab's blue");
+        compare(String(lit.gradient.stops[0].color), "#306ba3");
+        compare(String(lit.gradient.stops[1].color), "#6ca6ce");
+        verify(!findChild(findChild(tabs, "source:acc-up|uuid-1"), "tabSelected").visible, "no blue on the others");
+        // As drawn: an unselected tab as light as the header, the selected
+        // one blue. (The black tabs the phone drew for "gradient: null" do
+        // not show here: the host's renderer draws that one see-through.)
+        // (The whole window, read at scene points: grabImage(tabs) comes
+        // out cut from the wrong place in the app's window.)
+        var scene = tabs.Window.window.contentItem;
+        waitForRendering(scene);
+        var drawn = grabImage(scene);
+        var spot = function(n) {
+            var t = findChild(tabs, n), p = t.mapToItem(scene, Units.gu(0.5), t.height / 2);
+            return drawn.pixel(Math.round(p.x), Math.round(p.y));
+        };
+        var grey = spot("source:acc-up|uuid-1");
+        verify(grey.r > 0.85 && grey.g > 0.85 && grey.b > 0.85, "an unselected tab light: " + grey);
+        var blue = spot("source:acc-jf");
+        verify(blue.b > blue.r + 0.2, "the selected tab blue: " + blue);
+        verify(String(findChild(tabs, "source:").contentItem.children[0].children[0].source).indexOf("device-dark.svg") > 0,
+               "the device's icon dark when not selected");
         compare(app.library.visible, false);
         // Rows show their videos; an empty row is not shown; libraries open.
         tryVerify(function() { return browseChild("tile:m3") !== null; }, 2000, "Continue Watching's films");
@@ -1097,6 +1148,13 @@ TestCase {
         verify(browseChild("library:movies") !== null);
         verify(browseChild("library:shows") !== null);
         var home = browseChild("homeView");
+        // Flicks as fast as the finger: the cap in screens, not Qt's 2500 px/s.
+        compare(home.maximumFlickVelocity, home.height * 8);
+        compare(home.flickDeceleration, home.height * 1.5);
+        verify(home.maximumFlickVelocity > 2500);
+        var row = findChild(browseChild("row:continue"), "rowList");
+        if (row)
+            compare(row.maximumFlickVelocity, row.width * 8, "a row by its width");
         verify(browseChild("library:shows").mapToItem(home, 0, 0).y < browseChild("row:continue").mapToItem(home, 0, 0).y,
                "the libraries above the rows");
         compare(videoCallsOf("listItems").map(function(c) { return c.args.sectionId; }).sort(), ["continue", "empty"],
@@ -1109,6 +1167,107 @@ TestCase {
         compare(quits, 0);
     }
 
+    function test_tabs_keep_their_place_and_their_icons_in_line() {
+        startApp();
+        tryVerify(function() { return app.sources.generation > 0; }, 2000);
+        var many = [];
+        for (var i = 0; i < 12; i++)
+            many.push({ sourceId: "acc-m" + i, name: "M3U – List " + i, label: i === 3 ? "Free TV – Netherlands" : "List " + i,
+                        provider: "m3u", icon: "", features: { search: true, progress: false, continueWatching: false, live: true } });
+        app.sources.list = many;
+        var bar = findChild(app.library, "sourceBar");
+        tryVerify(function() { return findChild(bar, "source:acc-m11") !== null; }, 1000);
+        // Every icon at one height, the two-line caption under its own and
+        // inside its tab (after a frame: a Column places its children late).
+        wait(100);
+        var icons = ["source:", "source:acc-m0", "source:acc-m3"].map(function(n) {
+            var t = findChild(bar, n);
+            return { y: findChild(t, "tabIcon").mapToItem(t, 0, 0).y, tab: t };
+        });
+        compare(icons[2].y, icons[0].y, "the icon over a two-line caption not pushed up");
+        compare(icons[1].y, icons[0].y);
+        var two = findChild(icons[2].tab, "tabCaption");
+        compare(two.lineCount, 2);
+        verify(two.mapToItem(icons[2].tab, 0, 0).y + two.height <= icons[2].tab.height + 1, "the caption inside the tab");
+        // Scrolled along and a tab far along picked: the server's page shows
+        // the row where it was, with that tab in view.
+        var row = bar.contentItem;
+        verify(row.contentWidth > row.width, "more tabs than fit");
+        // A hard flick runs to the end of the row, and one back to its start
+        // (a snapping row stopped about a screen along).
+        compare(row.snapMode, ListView.NoSnap);
+        compare(row.maximumFlickVelocity, row.width * 8);
+        compare(row.flickDeceleration, row.width * 1.5);
+        var flick = function(from, by) {
+            var y = bar.height / 2, t = touchEvent(bar);
+            t.press(0, bar, from, y).commit();
+            for (var k = 1; k <= 5; k++) { wait(16); t.move(0, bar, from + by * k / 5, y).commit(); }
+            wait(16);
+            t.release(0, bar, from + by, y).commit();
+        };
+        flick(bar.width * 0.85, -bar.width * 0.5);
+        tryVerify(function() { return !row.moving; }, 4000);
+        compare(row.contentX - row.originX, row.contentWidth - row.width, "flicked to the end");
+        compare(app.sourceId, "", "a flick picks nothing");
+        flick(bar.width * 0.15, bar.width * 0.5);
+        tryVerify(function() { return !row.moving; }, 4000);
+        compare(row.contentX - row.originX, 0, "and back to the start");
+        row.contentX = row.originX + row.contentWidth - row.width;
+        row.movementEnded();
+        var x = row.contentX - row.originX;
+        compare(app.tabScrollX, x);
+        // A tab in view but not at the row's end: the row stays put.
+        mouseClick(findChild(bar, "source:acc-m10"));
+        tryVerify(function() { return app.browse.visible; }, 1000);
+        var other = findChild(app.browse, "sourceBar");
+        tryVerify(function() { return Math.abs(other.contentItem.contentX - other.contentItem.originX - x) < 1; }, 1000,
+                  "the server's bar as the library's was");
+        var lit = findChild(other, "source:acc-m10");
+        verify(lit.checked);
+        var at = lit.mapToItem(other, 0, 0).x;
+        verify(at >= -1 && at + lit.width <= other.width + 1, "the picked tab in view: " + at);
+        // Back to this device from the start of the row: its tab comes into view.
+        other.contentItem.contentX = other.contentItem.originX + other.contentItem.contentWidth - other.contentItem.width;
+        keyClick(Qt.Key_Escape);
+        tryCompare(app, "sourceId", "");
+        tryVerify(function() { var t = findChild(bar, "source:"); var p = t.mapToItem(bar, 0, 0).x; return p >= -1 && p + t.width <= bar.width + 1; },
+                  1000, "this device's tab in view");
+    }
+
+    function test_the_servers_shown_at_once_from_the_last_time() {
+        startApp();
+        tryVerify(function() { return app.sources.generation > 0 && app.sources.list.length === 2; }, 2000);
+        verify(!app.sources.fromCache);
+        app.destroy();
+        app = null;
+        wait(50);
+        // The service slow to answer (it looks for media servers): the tabs
+        // from the last answer are there before it.
+        videoHold = ["listSources"];
+        startApp();
+        compare(app.sources.list.map(function(s) { return s.sourceId; }), ["acc-jf", "acc-up|uuid-1"]);
+        verify(app.sources.fromCache);
+        tryVerify(function() { return findChild(app.library, "sourceBar").visible; }, 1000, "the bar at once");
+        compare(app.sources.generation, 0, "not answered yet");
+        tryVerify(function() { return videoHeld["listSources"] !== undefined; }, 1000);
+        videoHeld["listSources"]();
+        tryVerify(function() { return app.sources.generation > 0; }, 1000);
+        verify(!app.sources.fromCache);
+        // Only what a tab shows is kept.
+        var kept = JSON.parse(app.sources._kept.list);
+        var allowed = ["accountId", "features", "icon", "label", "name", "provider", "sourceId", "templateId"];
+        compare(kept.length, 2);
+        kept.forEach(function(k) {
+            Object.keys(k).forEach(function(key) { verify(allowed.indexOf(key) >= 0, "kept " + key); });
+        });
+        // A service gone keeps nothing for the next start.
+        videoHold = [];
+        videoServiceThere = false;
+        app.sources.refresh();
+        tryVerify(function() { return app.sources.list.length === 0; }, 1000);
+        compare(app.sources._kept.list, "[]");
+    }
+
     function test_without_the_service_there_is_no_bar() {
         videoServiceThere = false;
         startApp();
@@ -1117,6 +1276,7 @@ TestCase {
         compare(app.sources.list.length, 0);
         verify(!findChild(app.library, "sourceBar").visible);
         compare(app.sources.errorText, "The video service does not answer.");
+        compare(app.sources._kept.list, "[]", "and none kept for the next start");
     }
 
     function test_a_library_pages_and_plays_with_progress_for_the_server() {
@@ -1165,6 +1325,61 @@ TestCase {
         tryVerify(function() { return browseChild("homeView") !== null; }, 1000, "up to the home");
         keyClick(Qt.Key_Escape);
         tryCompare(app, "sourceId", "");
+    }
+
+    function test_a_live_channel_has_nothing_to_seek_keep_or_report() {
+        startApp();
+        var channel = { id: "ch1", kind: "live", title: "Channel One", playable: true, hasChildren: false, artwork: {} };
+        // A place kept from before (a list that once had it as a film) is not used.
+        app.resume.remember("videos:acc-jf/ch1", { position: 10000, duration: 30000, audioTrack: 0, subtitle: "off" });
+        app.playOnline("acc-jf", channel, []);
+        tryVerify(function() { return app.player.started; }, 3000, "it plays");
+        compare(app.player.resumedFrom, 0, "not resumed");
+        verify(app.player.live);
+        compare(app.player.path, "videos:acc-jf/ch1");
+        verify(app.player.engine.seekable, "the engine could seek; the player does not");
+        app.player.showControls();
+        tryVerify(function() { return playerChild("seekRow").visible; }, 1000, "the bar is shown");
+        verify(!playerChild("seekBar").visible, "no seek bar");
+        verify(!playerChild("remainingLabel").visible, "no time left");
+        verify(playerChild("elapsedLabel").text.indexOf("LIVE") >= 0, playerChild("elapsedLabel").text);
+        verify(!playerChild("backButton").enabled && !playerChild("forwardButton").enabled, "no jumps");
+        verify(!playerChild("speedButton").enabled, "no speeds");
+        compare(app.session.durationMs, 0, "no length for the headset either");
+        wait(300);
+        var at = app.player.engine.position;
+        app.player.jump(10000);
+        app.player.command({ seek: 60000 });
+        verify(app.player.engine.position < at + 1000, "neither jump nor seek moved it: " + at + " -> " + app.player.engine.position);
+        app.player.pause();
+        app.player.saveState();
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(videoCallsOf("reportProgress").length, 0, "a channel has no progress for the server");
+        compare(app.resume.entry("videos:acc-jf/ch1").position, 10000, "nor kept on the device");
+        verify(app.onlineNow === null, "done with it");
+
+        // A film after it reports as before.
+        app.playOnline("acc-jf", { id: "m1", kind: "movie", title: "Movie 01", playable: true }, []);
+        tryVerify(function() { return app.player.path === "videos:acc-jf/m1" && app.player.started; }, 3000);
+        verify(!app.player.live);
+        app.player.showControls();
+        tryVerify(function() { return playerChild("seekBar").visible; }, 1000, "the film's seek bar");
+        verify(playerChild("remainingLabel").visible);
+        verify(playerChild("forwardButton").enabled);
+        app.player.pause();
+        tryVerify(function() { return videoCallsOf("reportProgress").length > 0; }, 2000, "the film's pause reported");
+
+        // From the film to the channel and on to another film: the film left
+        // is reported stopped, the channel left is not reported.
+        app.playOnline("acc-jf", channel, []);
+        tryVerify(function() { return app.player.path === "videos:acc-jf/ch1" && app.player.started; }, 3000);
+        verify(app.player.live);
+        app.playOnline("acc-jf", { id: "m2", kind: "movie", title: "Movie 02", playable: true }, []);
+        tryVerify(function() { return app.player.path === "videos:acc-jf/m2" && app.player.started; }, 3000);
+        var items = videoCallsOf("reportProgress").map(function(c) { return c.args.itemId + ":" + c.args.state; });
+        verify(items.indexOf("m1:stopped") >= 0, items);
+        verify(items.every(function(i) { return i.indexOf("ch1:") !== 0; }), items);
     }
 
     function test_the_end_counts_as_watched() {
@@ -1230,12 +1445,26 @@ TestCase {
         startApp();
         openServer("acc-up|uuid-1");
         verify(!browseChild("browseSearch").visible, "this one cannot search");
-        mouseClick(browseChild("library:c:2"));
+        // Its one section is opened at once: no tile to tap for it.
+        tryVerify(function() { var g = browseChild("listView"); return g !== null && g.count === 1; }, 2000, "the folder list");
+        compare(app.browse.stack.length, 1, "the list is the top level");
+        compare(app.browse.current.kind, "list");
+        verify(browseChild("library:c:2") === null, "no library tile");
+        verify(!findChild(app.browse, "levelTitle").visible, "no title over it");
+        compare(videoCallsOf("listItems").filter(function(c) { return c.args.sectionId === "c:2"; }).length, 1);
         tapTile("f1");
         tapTile("v1");
         tryVerify(function() { return app.player.started; }, 3000);
         compare(app.player.path, "videos:acc-up|uuid-1/v1");
         compare(videoCallsOf("reportProgress").length, 0, "nothing to report yet");
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+        compare(app.browse.stack.length, 2, "back in the folder");
+        keyClick(Qt.Key_Escape);
+        compare(app.browse.stack.length, 1, "up to the section's list");
+        verify(browseChild("library:c:2") === null, "not to a home with its tile");
+        keyClick(Qt.Key_Escape);
+        tryCompare(app, "sourceId", "", 1000, "and from it to this device");
     }
 
     function test_search_on_the_server() {

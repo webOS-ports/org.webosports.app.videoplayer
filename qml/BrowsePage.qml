@@ -103,9 +103,21 @@ Item {
 
     function loadHome(entry) {
         entry.loading = true;
-        appWindow.sources.sections(sourceId, function(r) {
+        var sid = sourceId;
+        appWindow.sources.sections(sid, function(r) {
             entry.loading = false;
             entry.sections = Online.homeEntries(r.sections);
+            // One section only (a playlist's channels, a media server's
+            // one folder): its list is the source's top level, with no
+            // tile to tap first. Back from it goes to this device.
+            if (entry.sections.length === 1 && sid === sourceId && stack.length === 1 && stack[0] === entry) {
+                var only = entry.sections[0];
+                var list = { kind: "list", title: only.title, where: { sectionId: only.id }, items: [], cursor: null,
+                             done: false, loading: false };
+                stack = [list];
+                loadMore(list);
+                return;
+            }
             entry.sections.forEach(function(s) {
                 if (s.layout === "row")
                     loadRow(entry, s.id);
@@ -245,8 +257,10 @@ Item {
 
         SourceBar {
             Layout.fillWidth: true
-            Layout.preferredHeight: Units.gu(6)
+            Layout.preferredHeight: implicitHeight
             sources: appWindow.sources.list
+            scrollX: appWindow.tabScrollX
+            onScrolled: function(x) { appWindow.tabScrollX = x; }
             current: page.sourceId
             onPicked: function(id) { appWindow.showSource(id); }
         }
@@ -321,6 +335,10 @@ Item {
 
         ListView {
             id: home
+            // Qt's 2500 px/s cap is about two screens a second on a dense phone
+            // panel: the cap and the slow-down in screens, as the launcher has them.
+            maximumFlickVelocity: Math.max(height, 1) * 8
+            flickDeceleration: Math.max(height, 1) * 1.5
             objectName: "homeView"
             readonly property var entry: page.current
             clip: true
@@ -377,6 +395,11 @@ Item {
             }
             ListView {
                 id: strip
+                objectName: "rowList"
+                // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                // panel: the cap and the slow-down in screens, as the launcher has them.
+                maximumFlickVelocity: Math.max(width, 1) * 8
+                flickDeceleration: Math.max(width, 1) * 1.5
                 width: rowCol.width
                 readonly property real tileWidth: rowCol.wideTiles ? Units.gu(24) : Units.gu(14)
                 height: (rowCol.wideTiles ? tileWidth * 9 / 16 : tileWidth * 3 / 2) + Units.gu(7)
@@ -433,6 +456,10 @@ Item {
 
         GridView {
             id: grid
+            // Qt's 2500 px/s cap is about two screens a second on a dense phone
+            // panel: the cap and the slow-down in screens, as the launcher has them.
+            maximumFlickVelocity: Math.max(height, 1) * 8
+            flickDeceleration: Math.max(height, 1) * 1.5
             objectName: "listView"
             readonly property var entry: page.current
             readonly property var items: (page.revision, entry && entry.items ? entry.items : [])
@@ -517,6 +544,10 @@ Item {
 
             ListView {
                 id: seasonBar
+                // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                // panel: the cap and the slow-down in screens, as the launcher has them.
+                maximumFlickVelocity: Math.max(width, 1) * 8
+                flickDeceleration: Math.max(width, 1) * 1.5
                 objectName: "seasonBar"
                 Layout.fillWidth: true
                 Layout.preferredHeight: Units.gu(4.5)
@@ -546,6 +577,10 @@ Item {
 
             ListView {
                 id: episodeList
+                // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                // panel: the cap and the slow-down in screens, as the launcher has them.
+                maximumFlickVelocity: Math.max(height, 1) * 8
+                flickDeceleration: Math.max(height, 1) * 1.5
                 objectName: "episodeList"
                 Layout.fillWidth: true
                 Layout.fillHeight: true

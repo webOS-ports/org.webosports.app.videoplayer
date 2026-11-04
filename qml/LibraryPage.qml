@@ -193,8 +193,10 @@ Item {
 
         SourceBar {
             Layout.fillWidth: true
-            Layout.preferredHeight: Units.gu(6)
+            Layout.preferredHeight: implicitHeight
             sources: appWindow.sources.list
+            scrollX: appWindow.tabScrollX
+            onScrolled: function(x) { appWindow.tabScrollX = x; }
             current: appWindow.sourceId
             onPicked: function(id) { appWindow.showSource(id); }
         }
@@ -231,6 +233,10 @@ Item {
 
                 ListView {
                     id: list
+                    // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                    // panel: the cap and the slow-down in screens, as the launcher has them.
+                    maximumFlickVelocity: Math.max(height, 1) * 8
+                    flickDeceleration: Math.max(height, 1) * 1.5
                     objectName: "videoList"
 
                     Layout.fillWidth: true
@@ -278,6 +284,10 @@ Item {
 
                 GridView {
                     id: grid
+                    // Qt's 2500 px/s cap is about two screens a second on a dense phone
+                    // panel: the cap and the slow-down in screens, as the launcher has them.
+                    maximumFlickVelocity: Math.max(height, 1) * 8
+                    flickDeceleration: Math.max(height, 1) * 1.5
                     objectName: "videoGrid"
 
                     Layout.fillWidth: true

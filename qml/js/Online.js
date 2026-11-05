@@ -23,7 +23,8 @@
  * answers (Jellyfin, PeerTube, UPnP/DLNA media servers). The service's
  * shapes are in its contract.js: sources, sections {id, title, layout},
  * items {id, kind, title, subtitle, artwork, durationMs, progress, playable,
- * hasChildren, ...}, streams {url, protocol, subtitles, startMs, session}.
+ * hasChildren, ...}, streams {url, protocol, subtitles, startMs, session,
+ * height, heights}.
  */
 
 var SERVICE = "luna://org.webosports.service.videos/";
@@ -69,9 +70,12 @@ function playStreamFor(sourceId, item, stream) {
     // A channel (an IPTV list's) has no length, place or end: the player
     // shows it as live, with nothing to seek or resume.
     if (item && item.kind === "live")
-        return { url: stream.url, title: titleOf(item), subtitles: subs, startMs: 0, key: itemKey(sourceId, item.id), live: true };
+        return { url: stream.url, title: titleOf(item), subtitles: subs, startMs: 0, key: itemKey(sourceId, item.id), live: true,
+                 height: stream.height > 0 ? stream.height : 0, heights: heightsOf(stream) };
     return {
         url: stream.url,
+        height: stream.height > 0 ? stream.height : 0,
+        heights: heightsOf(stream),
         title: titleOf(item),
         subtitles: subs,
         startMs: stream.startMs > 0 ? stream.startMs : (item && item.progress && item.progress.positionMs > 0 ? item.progress.positionMs : 0),
@@ -191,4 +195,62 @@ function homeEntries(sections) {
     });
     return all.filter(function(s) { return s.layout === "grid"; })
               .concat(all.filter(function(s) { return s.layout === "row"; }));
+}
+
+/*
+ * Quality: the picture heights a server can play an item at (the stream's
+ * heights, tallest first), and the one picked for each kind of server,
+ * kept as {provider: height} (0, or none: what the screen shows).
+ */
+function heightsOf(stream) {
+    var seen = {};
+    return (stream && Array.isArray(stream.heights) ? stream.heights : []).filter(function(h) {
+        if (typeof h !== "number" || h <= 0 || Math.floor(h) !== h || seen[h])
+            return false;
+        seen[h] = true;
+        return true;
+    }).sort(function(a, b) { return b - a; });
+}
+
+function qualityLabel(height) {
+    return height > 0 ? height + "p" : "Auto";
+}
+
+function pickedHeights(json) {
+    try {
+        var v = JSON.parse(json || "{}");
+        return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function pickedHeight(json, provider) {
+    var h = pickedHeights(json)[provider];
+    return typeof h === "number" && h > 0 ? h : 0;
+}
+
+function withPickedHeight(json, provider, height) {
+    var v = pickedHeights(json);
+    if (height > 0)
+        v[provider] = height;
+    else
+        delete v[provider];
+    return JSON.stringify(v);
+}
+
+// The tallest picture to ask for: the one picked, else the screen's.
+function maxHeightFor(picked, screenHeight) {
+    return picked > 0 ? picked : screenHeight;
+}
+
+// The choices of the Quality sheet: Auto, then each height; none when the
+// server has no choice. The one checked: Auto, else the height playing.
+function qualityChoices(heights, picked, playing) {
+    if (!heights || heights.length < 2)
+        return [];
+    var current = picked > 0 ? (playing > 0 ? playing : picked) : 0;
+    return [{ label: "Auto", checked: current === 0, key: "quality", value: 0 }].concat(heights.map(function(h) {
+        return { label: qualityLabel(h), checked: current === h, key: "quality", value: h };
+    }));
 }

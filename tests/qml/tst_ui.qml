@@ -146,9 +146,16 @@ TestCase {
         }
         if (method === "continueWatching")
             return { items: test.videoContinue.filter(function(it) { return a.sourceIds.indexOf(it.sourceId) >= 0; }), failed: [] };
-        if (method === "resolve")
-            return { stream: { url: "https://server.example/" + a.itemId + "/master.m3u8?ApiKey=k", protocol: "hls",
-                               subtitles: [], session: { play: "ps-" + a.itemId }, drm: null } };
+        if (method === "resolve") {
+            // Jellyfin plays at 1080, 720 or 480 lines; the NAS has one file.
+            var st = { url: "https://server.example/" + a.itemId + "/master.m3u8?ApiKey=k&h=" + a.prefer.maxHeight, protocol: "hls",
+                       subtitles: [], session: { play: "ps-" + a.itemId + "-" + a.prefer.maxHeight }, drm: null };
+            if (a.sourceId === "acc-jf") {
+                st.heights = [1080, 720, 480];
+                st.height = a.prefer.maxHeight >= 1080 ? 1080 : a.prefer.maxHeight >= 720 ? 720 : 480;
+            }
+            return { stream: st };
+        }
         if (method === "reportProgress")
             return {};
         return null;
@@ -226,6 +233,7 @@ TestCase {
         app.prefs.fullScreen = true;
         app.prefs.subtitleSize = "medium";
         app.prefs.turnLandscape = true;
+        app.prefs.streamHeights = "{}";
         app.prefs.readLengths = true;
         app.player.hideDelay = 400;
         tryVerify(function() { return app.scanner.generation > 0 && app.scanner.files.length === 10; }, 10000,
@@ -1319,12 +1327,12 @@ TestCase {
         compare(app.streamHeightFor(800, 1280), 720);
         compare(app.player.title, "Movie 01");
         compare(app.player.path, "videos:acc-jf/m1");
-        compare(app.player.stream.url, "https://server.example/m1/master.m3u8?ApiKey=k");
+        compare(app.player.stream.url, "https://server.example/m1/master.m3u8?ApiKey=k&h=" + res.prefer.maxHeight);
         app.player.engine.seek(20000);
         app.player.pause();
         tryVerify(function() { return videoCallsOf("reportProgress").length > 0; }, 2000, "the pause reported");
         var r = videoCallsOf("reportProgress").pop().args;
-        compare([r.sourceId, r.itemId, r.state, r.positionMs, r.session.play], ["acc-jf", "m1", "paused", 20000, "ps-m1"]);
+        compare([r.sourceId, r.itemId, r.state, r.positionMs, r.session.play], ["acc-jf", "m1", "paused", 20000, "ps-m1-" + res.prefer.maxHeight]);
         keyClick(Qt.Key_Escape);
         verify(!app.player.isOpen);
         r = videoCallsOf("reportProgress").pop().args;
@@ -1335,6 +1343,72 @@ TestCase {
         tryVerify(function() { return browseChild("homeView") !== null; }, 1000, "up to the home");
         keyClick(Qt.Key_Escape);
         tryCompare(app, "sourceId", "");
+    }
+
+    function test_quality_is_picked_per_kind_of_server() {
+        startApp();
+        var screen = Math.min(app.width, app.height) >= 1000 ? 1080 : 720;
+        app.playOnline("acc-jf", movie(1), []);
+        tryVerify(function() { return app.player.started; }, 3000, "it plays");
+        compare(videoCallsOf("resolve")[0].args.prefer.maxHeight, screen, "Auto: what the screen shows");
+        app.player.showControls();
+        tryVerify(function() { return playerChild("qualityButton").visible; }, 1000, "a choice: a Quality button");
+        compare(playerChild("qualityButton").label, "Auto");
+        waitForItemPolished(playerChild("buttonRow"));
+        app.player.engine.seek(20000);
+        app.player.engine.rate = 1.5;
+        clickButton("qualityButton");
+        verify(playerChild("choiceSheet").visible);
+        shot("quality");
+        var list = playerChild("sheetList");
+        compare(list.count, 4, "Auto and three heights");
+        choose("480p");
+        tryVerify(function() { return videoCallsOf("resolve").length === 2; }, 2000, "asked again");
+        compare(videoCallsOf("resolve")[1].args.prefer.maxHeight, 480);
+        tryVerify(function() { return app.player.started && app.player.stream.url.indexOf("h=480") > 0; }, 3000, "the 480 one plays");
+        tryVerify(function() { return app.player.engine.position >= 20000; }, 2000, "from where it was");
+        compare(app.player.engine.rate, 1.5, "at the speed it had");
+        compare(app.player.path, "videos:acc-jf/m1", "the same video");
+        var stopped = videoCallsOf("reportProgress").filter(function(c) { return c.args.state === "stopped"; });
+        compare(stopped.length, 1, "the first playback stopped on the server");
+        compare([stopped[0].args.positionMs >= 20000, stopped[0].args.session.play], [true, "ps-m1-" + screen]);
+        compare(JSON.parse(app.prefs.streamHeights), { jellyfin: 480 });
+        compare(playerChild("qualityButton").label, "480p");
+        clickButton("qualityButton");
+        compare(playerChild("choiceSheet").choices.filter(function(c) { return c.checked; }).map(function(c) { return c.label; }),
+                ["480p"], "the one playing checked");
+        keyClick(Qt.Key_Escape);
+        keyClick(Qt.Key_Escape);
+        verify(!app.player.isOpen);
+
+        // The next Jellyfin video is asked for at 480 too; the NAS, another
+        // kind of server, at what the screen shows, with no button.
+        app.playOnline("acc-jf", movie(2), []);
+        tryVerify(function() { return videoCallsOf("resolve").length === 3; }, 2000);
+        compare(videoCallsOf("resolve")[2].args.prefer.maxHeight, 480);
+        tryVerify(function() { return app.player.started; }, 3000);
+        keyClick(Qt.Key_Escape);
+        app.playOnline("acc-up|uuid-1", { id: "v1", kind: "video", title: "Home video", playable: true }, []);
+        tryVerify(function() { return videoCallsOf("resolve").length === 4; }, 2000);
+        compare(videoCallsOf("resolve")[3].args.prefer.maxHeight, screen);
+        tryVerify(function() { return app.player.started; }, 3000);
+        app.player.showControls();
+        wait(100);
+        verify(!playerChild("qualityButton").visible, "no choice: no button");
+
+        // Auto again: forgotten for Jellyfin.
+        keyClick(Qt.Key_Escape);
+        app.playOnline("acc-jf", movie(3), []);
+        tryVerify(function() { return app.player.started; }, 3000);
+        app.player.showControls();
+        // The row lays its buttons out again with the Quality one back.
+        tryVerify(function() { return playerChild("qualityButton").visible; }, 1000);
+        waitForItemPolished(playerChild("buttonRow"));
+        clickButton("qualityButton");
+        choose("Auto");
+        tryVerify(function() { return videoCallsOf("resolve").length === 6; }, 2000);
+        compare(videoCallsOf("resolve")[5].args.prefer.maxHeight, screen);
+        compare(app.prefs.streamHeights, "{}");
     }
 
     function test_a_live_channel_has_nothing_to_seek_keep_or_report() {

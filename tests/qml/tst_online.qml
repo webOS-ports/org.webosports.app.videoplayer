@@ -52,7 +52,7 @@ TestCase {
             { url: "http://s/en.vtt", lang: "en", format: "vtt", default: true },
             { url: "file:///etc/passwd", label: "no" },
             { url: "https://s/nl.srt", label: "Dutch", format: "srt" }] });
-        compare(s, { url: "http://s/v.m3u8", title: "Test Show S1E2 – The Second", key: "videos:acc/e2", startMs: 15000,
+        compare(s, { url: "http://s/v.m3u8", title: "Test Show S1E2 – The Second", key: "videos:acc/e2", startMs: 15000, height: 0, heights: [],
                      subtitles: [{ url: "http://s/en.vtt", label: "en", lang: "en", format: "vtt", default: true },
                                  { url: "https://s/nl.srt", label: "Dutch", lang: "", format: "srt", default: false }] });
         compare(Online.playStreamFor("acc", episode, { url: "http://s/v", startMs: 30000 }).startMs, 30000, "the stream's own wins");
@@ -63,7 +63,32 @@ TestCase {
     function test_a_channel_is_live_and_starts_now() {
         var ch = { id: "ch1", kind: "live", title: "Channel One", progress: { positionMs: 5000 } };
         compare(Online.playStreamFor("acc", ch, { url: "http://s/ch1.m3u8", startMs: 9000, subtitles: [] }),
-                { url: "http://s/ch1.m3u8", title: "Channel One", key: "videos:acc/ch1", startMs: 0, subtitles: [], live: true });
+                { url: "http://s/ch1.m3u8", title: "Channel One", key: "videos:acc/ch1", startMs: 0, subtitles: [], live: true,
+                  height: 0, heights: [] });
+    }
+
+    function test_quality() {
+        var s = Online.playStreamFor("acc", { id: "m", title: "M" }, { url: "http://s/v", height: 720, heights: [480, 1080, 720, 720, 0, -1, 7.5, "x"] });
+        compare([s.height, s.heights], [720, [1080, 720, 480]], "tallest first, each once, whole lines only");
+        compare(Online.heightsOf({ url: "x" }), []);
+        compare(Online.heightsOf(null), []);
+        compare(Online.qualityLabel(720), "720p");
+        compare(Online.qualityLabel(0), "Auto");
+        compare(Online.qualityChoices([720], 0, 720), [], "one height is no choice");
+        compare(Online.qualityChoices([1080, 480], 0, 1080).map(function(c) { return [c.label, c.value, c.checked]; }),
+                [["Auto", 0, true], ["1080p", 1080, false], ["480p", 480, false]]);
+        compare(Online.qualityChoices([720, 480], 1080, 720).map(function(c) { return c.checked; }), [false, true, false],
+                "1080 picked, the server's tallest is 720: that one");
+        compare(Online.qualityChoices([720, 480], 480, 0).map(function(c) { return c.checked; }), [false, false, true]);
+        compare(Online.maxHeightFor(0, 720), 720);
+        compare(Online.maxHeightFor(480, 1080), 480);
+        var j = Online.withPickedHeight("{}", "jellyfin", 480);
+        compare(Online.pickedHeight(j, "jellyfin"), 480);
+        compare(Online.pickedHeight(j, "plex"), 0);
+        compare(Online.withPickedHeight(j, "jellyfin", 0), "{}");
+        compare(Online.pickedHeight("not json", "jellyfin"), 0);
+        compare(Online.pickedHeight("[480]", "0"), 0);
+        compare(Online.pickedHeight(JSON.stringify({ jellyfin: "480" }), "jellyfin"), 0);
     }
 
     function test_progress_reports() {

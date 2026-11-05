@@ -27,6 +27,7 @@ import "components"
 import LuneOS.Components 1.0 as LC
 import "js/Format.js" as Format
 import "js/Library.js" as Library
+import "js/Online.js" as Online
 import "js/Playback.js" as Playback
 import "js/Subtitles.js" as Subtitles
 
@@ -129,6 +130,17 @@ FocusScope {
     property int turnAngle: 90
 
     signal closed()
+    // A quality picked in the Quality sheet (0: Auto): the app asks the
+    // server again and opens what plays at it.
+    signal qualityRequested(int height)
+
+    // The picture heights the server can play this at, tallest first: a
+    // Quality button when there are two or more. picked: the one asked for
+    // (0: Auto), playing: what the server gave.
+    readonly property var qualityHeights: stream && Array.isArray(stream.heights) ? stream.heights : []
+    readonly property bool hasQualities: qualityHeights.length > 1
+    readonly property int qualityPicked: stream && stream.picked > 0 ? stream.picked : 0
+    readonly property int qualityPlaying: stream && stream.height > 0 ? stream.height : 0
 
     visible: isOpen
 
@@ -670,6 +682,14 @@ FocusScope {
         return "Subtitles " + (index + 1);
     }
 
+    function openQualityPicker() {
+        var choices = Online.qualityChoices(qualityHeights, qualityPicked, qualityPlaying);
+        if (choices.length === 0)
+            return;
+        sheet.show("Quality", choices);
+        showControls();
+    }
+
     function openSpeedPicker() {
         var choices = Playback.rates.map(function(r) {
             return { label: r === 1 ? "Normal" : Format.rate(r), checked: engine && Math.abs(engine.rate - r) < 0.01,
@@ -690,6 +710,11 @@ FocusScope {
         } else if (choice.key === "rate") {
             engine.rate = choice.value;
             log("rate", { rate: choice.value });
+        } else if (choice.key === "quality") {
+            log("quality", { height: choice.value });
+            sheet.hide();
+            qualityRequested(choice.value);
+            return;
         }
         saveState();
         showControls();
@@ -1016,7 +1041,7 @@ FocusScope {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Units.gu(1)
                 // Narrow screens: the buttons share what there is.
-                readonly property int buttons: view.tallScreen || view.turned ? 8 : 7
+                readonly property int buttons: (view.tallScreen || view.turned ? 8 : 7) + (view.hasQualities ? 1 : 0)
                 readonly property real buttonWidth: Math.min(Math.max(Units.gu(6), 54),
                                                              (stage.width - Units.gu(2)) / buttons)
                 spacing: 0
@@ -1063,6 +1088,13 @@ FocusScope {
                     label: view.engine ? Format.rate(view.engine.rate) : "1×"
                     enabled: !view.live
                     onClicked: view.openSpeedPicker()
+                }
+                IconButton {
+                    objectName: "qualityButton"
+                    width: buttonRow.buttonWidth
+                    visible: view.hasQualities
+                    label: Online.qualityLabel(view.qualityPicked)
+                    onClicked: view.openQualityPicker()
                 }
                 IconButton {
                     objectName: "fullScreenButton"

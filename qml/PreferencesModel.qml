@@ -44,4 +44,7 @@ Settings {
     // on Halium images without the gst-droid audio rank fix, loading a
     // video with AAC sound ends the app.
     property bool readLengths: false
+    // The picture height picked for each kind of server, as JSON
+    // {provider: height}; none for one: what the screen shows.
+    property string streamHeights: "{}"
 }

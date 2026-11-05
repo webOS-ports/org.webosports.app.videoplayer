@@ -22,6 +22,17 @@ LC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "luneos-comp
 
 # (what it breaks, file, text, replacement, test file, profile)
 MUTATIONS = [
+    # Quality: the picture height picked in the player, per kind of server.
+    ('quality: heights not sorted', 'qml/js/Online.js', '}).sort(function(a, b) { return b - a; });', '});', 'online', None),
+    ('quality: duplicate heights kept', 'qml/js/Online.js', 'h <= 0 || Math.floor(h) !== h || seen[h])', 'h <= 0 || Math.floor(h) !== h)', 'online', None),
+    ('quality: one height is a choice', 'qml/js/Online.js', 'if (!heights || heights.length < 2)\n        return [];', 'if (!heights || heights.length < 1)\n        return [];', 'online', None),
+    ('quality: Auto not forgotten', 'qml/js/Online.js', '    else\n        delete v[provider];', '', 'online', None),
+    ('quality: the pick not asked for', 'qml/main.qml', '{ maxHeight: Online.maxHeightFor(picked, streamHeight),', '{ maxHeight: streamHeight,', 'ui::Ui::test_quality_is_picked_per_kind_of_server', None),
+    ('quality: kept for every server', 'qml/main.qml', 'return s && s.provider ? s.provider : sid;', 'return "all";', 'ui::Ui::test_quality_is_picked_per_kind_of_server', None),
+    ('quality: switched from the start', 'qml/main.qml', 'position: now.item.kind === "live" || !e ? 0 : e.position', 'position: 0', 'ui::Ui::test_quality_is_picked_per_kind_of_server', None),
+    ('quality: the speed lost on a switch', 'qml/main.qml', ', rate: e ? e.rate : 1 };', ' };', 'ui::Ui::test_quality_is_picked_per_kind_of_server', None),
+    ('quality: button without a choice', 'qml/PlayerView.qml', 'visible: view.hasQualities\n', 'visible: true\n', 'ui::Ui::test_quality_is_picked_per_kind_of_server', None),
+    ('quality: the pick not kept', 'qml/main.qml', 'preferences.streamHeights = Online.withPickedHeight(', 'void Online.withPickedHeight(', 'ui::Ui::test_quality_is_picked_per_kind_of_server', None),
     # Videos from servers. (The sources are asked for at the start and on
     # coming to the front; a test window comes to the front at once, so
     # dropping either alone is not seen, and is not listed.)

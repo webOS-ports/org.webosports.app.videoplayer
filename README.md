@@ -131,6 +131,13 @@ by the app, with `snapshotDelay`).
 - Subtitles a server lists for the stream, SubRip or WebVTT: in the
   subtitle picker by the names the server gave them, off unless the
   server marks one as the default.
+- Quality: when the server can play a video at more than one picture
+  height (the stream's `heights`), the player has a Quality button: Auto
+  (as tall as the screen shows: 1080 lines on a screen 1000 pixels or more
+  across its short side, else 720) or one of the heights. Picking one asks
+  the server again and goes on from the same place, with the same sound,
+  subtitles and speed; the pick is kept for that kind of server (all
+  Jellyfin accounts, all YouTube videos) for the next videos too.
 - A stream has 30 seconds to start rather than 15, for the playlist and
   its first pieces to arrive.
 - Where it got to is reported now and then while playing, on a pause, at
@@ -208,7 +215,7 @@ stand-ins:
   never starts, a broken one, the back gesture, launch parameters (also before the scan is done),
   interruptions, the end of a video, streams (a link, a stream with its
   subtitles and the server's position, a slow start, a link that is not
-  one), the library's pictures, reading
+  one, the quality picked for each kind of server), the library's pictures, reading
   lengths switched off after a crash, a headset's keys through the media
   session, and the bars fitting each screen. Screenshots of each
   state go to `build/test-output/ui/`.
@@ -216,7 +223,7 @@ stand-ins:
 `tests/mutation-check.py` breaks the app in one way at a time and checks
 that a test fails: 56 ways. The other 34 were all caught on 2026-10-29,
 the 12 for the media session on 2026-10-30, the 10 for streams on
-2026-11-03. `MUTATIONS_MATCHING=<words>` runs only those whose description
+2026-11-03, the 10 for the quality on 2026-11-05. `MUTATIONS_MATCHING=<words>` runs only those whose description
 has those words.
 
 There is no C++ in the app, so no compiler, sanitizer or C/C++ static

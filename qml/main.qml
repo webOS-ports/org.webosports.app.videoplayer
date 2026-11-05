@@ -265,7 +265,9 @@ WebOSWindow {
      * previous one. options as playFile's ({position: 0}: from the start).
      */
     function playOnline(sid, item, siblings, options) {
-        videoSources.resolve(sid, item.id, { maxHeight: streamHeight, codecs: ["h264"], audioCodecs: ["aac", "mp3"] },
+        var picked = pickedHeightFor(sid);
+        videoSources.resolve(sid, item.id, { maxHeight: Online.maxHeightFor(picked, streamHeight), codecs: ["h264"],
+                                             audioCodecs: ["aac", "mp3"] },
                              function(r) {
             // One server video after another (the next episode): the one
             // left is stopped there.
@@ -274,10 +276,38 @@ WebOSWindow {
                 videoSources.report(Online.progressArgs(prev.sourceId, prev.item.id, playerView.engine.position,
                                                         playerView.engine.duration, "stopped", prev.session));
             onlineNow = { sourceId: sid, item: item, session: r.stream.session || null, siblings: siblings || [] };
-            playStream(Online.playStreamFor(sid, item, r.stream), options || {});
+            var ps = Online.playStreamFor(sid, item, r.stream);
+            ps.picked = picked;
+            playStream(ps, options || {});
         }, function(r) {
             notice = Online.errorText(r);
         });
+    }
+
+    // The kind of server a source is ("jellyfin", "youtube"): the quality
+    // picked is kept for each.
+    function providerOf(sid) {
+        var s = videoSources.find(sid);
+        return s && s.provider ? s.provider : sid;
+    }
+
+    function pickedHeightFor(sid) {
+        return Online.pickedHeight(preferences.streamHeights, providerOf(sid));
+    }
+
+    /*
+     * The quality picked in the player (0: Auto): kept for that kind of
+     * server, and what plays asked for again at it, from where it is, with
+     * the sound, subtitles and speed it had.
+     */
+    function chooseQuality(height) {
+        var now = onlineNow;
+        if (!now || !playerView.isOpen)
+            return;
+        preferences.streamHeights = Online.withPickedHeight(preferences.streamHeights, providerOf(now.sourceId), height);
+        var e = playerView.engine;
+        var options = { position: now.item.kind === "live" || !e ? 0 : e.position, rate: e ? e.rate : 1 };
+        playOnline(now.sourceId, now.item, now.siblings, options);
     }
 
     // The next (1) or previous (-1) episode of what plays; false if none.
@@ -514,6 +544,7 @@ WebOSWindow {
             resume: resumeStore
             cache: mediaCache
             onClosed: root.forceActiveFocus()
+            onQualityRequested: (height) => appWindow.chooseQuality(height)
         }
 
         // The back gesture arrives as Escape (see LunaNext.Common's

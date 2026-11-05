@@ -128,10 +128,10 @@ function subtitleLabel(videoPath, srtPath) {
     return stem.length > base.length + 1 ? stem.substr(base.length + 1) : "";
 }
 
-// Whether a launch target is a stream on a server (http or https) rather
-// than a file on the device.
+// Whether a launch target is a stream on a server (http, https or rtsp)
+// rather than a file on the device.
 function isStreamUrl(target) {
-    return /^https?:\/\/[^\s\/?#]+[^\s]*$/i.test(String(target === undefined || target === null ? "" : target));
+    return /^(https?|rtsp[tu]?):\/\/[^\s\/?#]+[^\s]*$/i.test(String(target === undefined || target === null ? "" : target));
 }
 
 // ---- order and search -------------------------------------------------------

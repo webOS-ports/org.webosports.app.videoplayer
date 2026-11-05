@@ -4,7 +4,7 @@
 # (tst_mediasession), the scan and the length probe
 # (tst_scanner) and the app itself with a stand-in player (tst_ui), the
 # last once per screen in PROFILES - by default the TouchPad, the
-# mindphone and the Q25 - with luneos-components' desktop stand-ins.
+# mindphone, the Q25 and the radon (720x1600) - with luneos-components' desktop stand-ins.
 #
 #   tools/run-tests.sh [path to luneos-components [qmltestrunner arguments]]
 #
@@ -16,7 +16,7 @@ set -e
 cd "$(dirname "$0")/.."
 LC=${1:-../luneos-components}
 [ $# -gt 0 ] && shift
-PROFILES=${PROFILES:-tp mindphone q25}
+PROFILES=${PROFILES:-tp mindphone q25 radon}
 CONF=$(mktemp -d)
 trap 'rm -rf "$CONF"' EXIT
 mkdir -p build/test-output/ui

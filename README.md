@@ -201,7 +201,8 @@ stand-ins:
   busy), the cache's folder.
 - `tst_ui`: the app itself with a stand-in player engine
   (`tests/qml/mocks/FakeEngine.qml`) on the TouchPad (1024x768), the
-  mindphone (480x800) and the Q25 (720x720): the library, lengths, search,
+  mindphone (480x800), the Q25 (720x720) and the radon (720x1600, a
+  phone with a notch and rounded corners): the library, lengths, search,
   the app menu, playing, the bars, play/pause and jumps, the seek bar,
   speed, audio tracks, both kinds of subtitles and their size, fit and
   fill, fullscreen, the screen lock, turning, resuming, a video that
@@ -211,7 +212,8 @@ stand-ins:
   one), the library's pictures, reading
   lengths switched off after a crash, a headset's keys through the media
   session, and the bars fitting each screen. Screenshots of each
-  state go to `build/test-output/ui/`.
+  state go to `build/test-output/ui/<profile>-<state>.png`; `PROFILES="tp
+  radon"` picks the screens.
 
 `tests/mutation-check.py` breaks the app in one way at a time and checks
 that a test fails: 56 ways. The other 34 were all caught on 2026-10-29,
